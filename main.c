@@ -3,9 +3,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "utils.h"
+#include "convert.h"
+#include "inspect.h"
 
 typedef struct {
   bool v3;
+  bool inspect_mode;
   const char *in;
   char *out;
 } options_t;
@@ -14,6 +17,7 @@ static void
 usage (const char *progname)
 {
   printf ("%s [-3h] [--help] <inputfile> [<outputfile>] \n\
+%s -i <file> \n\
   \n\
   Convert a sl1 file into a ctb file. \n\
   Output file will have the same name as input file with the \n\
@@ -22,17 +26,21 @@ usage (const char *progname)
   \n\
   By default, outputs ctb version 4 files.\n\
   \n\
+  When `-i` option is provided, inspect the given file instead.\n\
+  \n\
   Options: \n\
   \n\
   -3        : output ctb version 3 \n\
   -4        : output ctb version 4 \n\
+  -i        ; inspect file. \n\
   -h|--help : show this help \n\
-  \n", progname);
+  \n", progname, progname);
 }
 
 static void
 parse_options (options_t *options, const size_t argc, char ** const argv)
 {
+  options->inspect_mode = false;
   options->v3 = false;
   options->in = NULL;
   options->out = NULL;
@@ -48,6 +56,12 @@ parse_options (options_t *options, const size_t argc, char ** const argv)
       if (strncmp (argv[i], "-4", 3) == 0)
         {
           options->v3 = false;
+          continue;
+        }
+
+      if (strncmp (argv[i], "-i", 3) == 0)
+        {
+          options->inspect_mode = true;
           continue;
         }
 
@@ -102,7 +116,10 @@ main (int argc, char **argv)
   options_t options;
   parse_options (&options, argc, argv);
 
-  printf ("will ouput to %s.\n", options.out);
+  if (options.inspect_mode)
+    inspect (options.in);
+  else
+    convert (options.in, options.out, options.v3);
 
   if (options.out) free (options.out);
 }

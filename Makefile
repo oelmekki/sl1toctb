@@ -1,7 +1,7 @@
 PROG=sl1toctb
 CFLAGS=
 PREFIX=/usr/local
-FILES=main.c utils.c
+FILES=main.c utils.c convert.c parser.c inspect.c
 LIBS=
 
 all: ${PROG}
