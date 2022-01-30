@@ -6,7 +6,7 @@
 void *
 xalloc (size_t len)
 {
-  void *mem = malloc (len);
+  void *mem = calloc (1, len);
   if (!mem)
     {
       fprintf (stderr, "can't allocated memory");

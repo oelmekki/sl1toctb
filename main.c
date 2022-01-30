@@ -113,13 +113,16 @@ parse_options (options_t *options, const size_t argc, char ** const argv)
 int
 main (int argc, char **argv)
 {
+  int ret = 0;
   options_t options;
   parse_options (&options, argc, argv);
 
   if (options.inspect_mode)
-    inspect (options.in);
+    ret = inspect (options.in);
   else
-    convert (options.in, options.out, options.v3);
+    ret = convert (options.in, options.out, options.v3);
 
   if (options.out) free (options.out);
+
+  return ret;
 }

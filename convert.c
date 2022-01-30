@@ -38,28 +38,41 @@ write_file (const ctb_t *ctb, const char *out)
  *
  * It will be a ctb version 4 file, unless the `v3` flag
  * is set.
+ *
+ * Returns non-zero on error.
  */
-void
+int
 convert (const char *in, const char *out, const bool v3)
 {
-  sl1_t sl1;
-  ctb_t ctb;
+  int ret = 0;
+  sl1_t *sl1 = NULL;
+  ctb_t *ctb = NULL;
 
-  if (parse_sl1_file (&sl1, in))
+  sl1 = new_sl1 ();
+  if (parse_sl1_file (sl1, in))
     {
       fprintf (stderr, "Can't parse input file.\n");
-      exit (1);
+      ret = 1;
+      goto cleanup;
     }
 
-  if (generate_ctb (&ctb, &sl1, v3 ? 3 : 4))
+  ctb = new_ctb ();
+  if (generate_ctb (ctb, sl1, v3 ? 3 : 4))
     {
       fprintf (stderr, "Can't generate ctb file.\n");
-      exit (1);
+      ret = 1;
+      goto cleanup;
     }
 
-  if (write_file (&ctb, out))
+  if (write_file (ctb, out))
     {
       fprintf (stderr, "Can't write output file.\n");
-      exit (1);
+      ret = 1;
+      goto cleanup;
     }
+
+  cleanup:
+  if (sl1) free_sl1 (sl1);
+  if (ctb) free_ctb (ctb);
+  return ret;
 }
