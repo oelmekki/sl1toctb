@@ -1,8 +1,9 @@
 PROG=sl1toctb
-CFLAGS=
+DEPS=zlib
+FILES=main.c spng.c utils.c convert.c parser.c inspect.c
+CFLAGS=`pkg-config --cflags ${DEPS}`
 PREFIX=/usr/local
-FILES=main.c utils.c convert.c parser.c inspect.c
-LIBS=
+LIBS=-lm `pkg-config --libs ${DEPS}`
 
 all: ${PROG}
 

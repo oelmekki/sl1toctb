@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
 #include "utils.h"
 #include "parser.h"
 
@@ -30,6 +32,7 @@ void
 free_ctb (ctb_t *c)
 {
   if (!c) return;
+  if (c->file_path) free (c->file_path);
   if (c->machine_name) free (c->machine_name);
   if (c->disclaimer) free (c->disclaimer);
 
@@ -48,7 +51,6 @@ parse_sl1_file (sl1_t *sl1, const char *in)
   return 1; // FIXME writing ctb parser first
 }
 
-// TODO
 /*
  * Read a ctb file at `in` and initialize the `ctb` struct with it.
  *
@@ -58,7 +60,14 @@ int
 parse_ctb_file (ctb_t *ctb, const char *in)
 { 
   int ret = 0;
-  FILE *file = fopen (in, "r");
+  ctb->file_path = strdup (in);
+  if (!ctb->file_path)
+    {
+      fprintf (stderr, "Not enough memory.");
+      exit (1);
+    }
+
+  FILE *file = fopen (in, "rb");
   if (!file)
     {
       fprintf (stderr, "parse_ctb_file() : can't open file %s\n", in);
@@ -154,4 +163,84 @@ parse_ctb_file (ctb_t *ctb, const char *in)
   cleanup:
   if (file) fclose (file);
   return ret;
+}
+
+// TODO
+/*
+ * Read preview image for file `ctb` and store its content in `data`.
+ *
+ * To select which image to preview, pass CTB_PREVIEW_LARGE or
+ * CTB_PREVIEW_SMALL as `type`.
+ *
+ * Returns non-zero in case of error.
+ */
+int
+read_preview_file (u_int8_t **data, size_t *len, const ctb_t *ctb, size_t type)
+{
+  int err = 0;
+  char *compressed = NULL;
+  FILE *file = NULL;
+
+  if (!ctb->file_path)
+    {
+      fprintf (stderr, "read_preview_file() : internal error: the ctb object has no file_path attribute.\n");
+      err = 1;
+      goto cleanup;
+    }
+
+  file = fopen (ctb->file_path, "rb");
+  if (!file)
+    {
+      fprintf (stderr, "read_preview_file() : can't open file %s\n", ctb->file_path);
+      err = 1;
+      goto cleanup;
+    }
+
+  const ctb_preview_t *preview = type == CTB_PREVIEW_LARGE ? &ctb->large_preview : &ctb->small_preview;
+
+  err = fseek (file, preview->image_offset, SEEK_SET);
+  if (err)
+    {
+      fprintf (stderr, "read_preview_file() : can't find preview image in file %s\n", ctb->file_path);
+      goto cleanup;
+    }
+
+  compressed = xalloc (preview->image_length);
+  size_t count = fread (compressed, preview->image_length, 1, file);
+  if (count != 1)
+    {
+      fprintf (stderr, "read_preview_file() : can't read file %s\n", ctb->file_path);
+      err = 1;
+      goto cleanup;
+    }
+
+  *data = xalloc (preview->resolution_x * preview->resolution_y * sizeof (u_int8_t) * 3);
+  *len = 0;
+  for (size_t i = 0; i < preview->image_length; i++)
+    {
+      u_int32_t dot = (u_int32_t)((compressed[i] & 0xFF) | ((compressed[i+1] & 0xFF) << 8));
+      i++;
+
+      char red = (char)(((dot >> 11) & 0x1F) << 3);
+      char green = (char)(((dot >> 6) & 0x1F) << 3);
+      char blue = (char)((dot & 0x1F) << 3);
+      size_t repeat = 1;
+      if ((dot & 0x0020) == 0x0020)
+        {
+          repeat += (compressed[i+1] & 0xFF) | ((compressed[i+2] & 0x0F) << 8);
+          i += 2;
+        }
+
+      for (size_t j = 0; j < repeat; j++)
+        {
+          (*data)[(*len)++] = red;
+          (*data)[(*len)++] = green;
+          (*data)[(*len)++] = blue;
+        }
+    }
+
+  cleanup:
+  if (file) fclose (file);
+  if (compressed) free (compressed);
+  return err;
 }

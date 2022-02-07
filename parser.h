@@ -3,6 +3,11 @@
 
 #include <sys/types.h>
 
+enum {
+  CTB_PREVIEW_LARGE,
+  CTB_PREVIEW_SMALL,
+};
+
 typedef struct {
   int whatever; // FIXME
 } sl1_t;
@@ -125,16 +130,26 @@ typedef struct {
   ctb_print_config_v4_t print_config_v4;
   ctb_preview_t large_preview;
   ctb_preview_t small_preview;
+  char *file_path;
   char *machine_name;
   char *disclaimer;
   char reserved[384];
 } ctb_t;
 
-sl1_t *   new_sl1         ();
-void      free_sl1        (sl1_t *s);
-ctb_t *   new_ctb         ();
-void      free_ctb        (ctb_t *c);
-int       parse_sl1_file  (sl1_t *sl1, const char *in);
-int       parse_ctb_file  (ctb_t *ctb, const char *in);
+typedef struct {
+  u_int8_t blue:5;
+  u_int8_t run_flag:1;
+  u_int8_t green:5;
+  u_int8_t red:5;
+} pixel_t;
+
+sl1_t *   new_sl1             ();
+void      free_sl1            (sl1_t *s);
+ctb_t *   new_ctb             ();
+void      free_ctb            (ctb_t *c);
+int       parse_sl1_file      (sl1_t *sl1, const char *in);
+int       parse_ctb_file      (ctb_t *ctb, const char *in);
+int       read_preview_file   (u_int8_t **data, size_t *len, const ctb_t *c, size_t type);
+
 
 #endif

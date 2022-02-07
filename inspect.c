@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdbool.h>
 #include "parser.h"
+#include "spng.h"
 
 static void   display_sl1     (sl1_t *sl1);
 static void   display_ctb     (ctb_t *ctb);
@@ -103,6 +107,105 @@ display_ctb (ctb_t *ctb)
 // PUBLIC
 
 /*
+ * Extract large preview image and display it.
+ *
+ * `image_type` is CTB_PREVIEW_LARGE or CTB_PREVIEW_SMALL.
+ *
+ * Returns non-zero in case of error.
+ */
+int
+show_preview_image (const char *in, int image_type)
+{
+  int err = 0;
+  u_int8_t *data = NULL;
+  FILE *file = NULL;
+  size_t len = 0;
+  spng_ctx *ctx = NULL;
+  char tmp_file[] = "/tmp/sl1toctb-XXXXXX";
+  mkstemp (tmp_file);
+  bool file_created = false;
+
+  ctb_t *ctb = new_ctb ();
+  err = parse_ctb_file (ctb, in);
+  if (err)
+    {
+      fprintf (stderr, "show_preview_image() : Unrecognized file at %s\n", in);
+      goto cleanup;
+    }
+
+  err = read_preview_file (&data, &len, ctb, image_type);
+  if (err)
+    {
+      fprintf (stderr, "show_preview_image() : Can't read image data\n");
+      goto cleanup;
+    }
+
+  file = fopen (tmp_file, "wb");
+  if (!file)
+    {
+      fprintf (stderr, "show_preview_image() : Can't open destination file.\n");
+      err = 1;
+      goto cleanup;
+    }
+
+  file_created = true;
+  ctb_preview_t *preview = image_type == CTB_PREVIEW_LARGE ? &ctb->large_preview : &ctb->small_preview;
+
+  u_int32_t width = preview->resolution_x;
+  u_int32_t height = preview->resolution_y;
+
+  ctx = spng_ctx_new (SPNG_CTX_ENCODER);
+  err = spng_set_png_file (ctx, file);
+  if (err)
+    {
+      fprintf (stderr, "show_preview_image() : Error while passing file to spng.\n");
+      err = 1;
+      goto cleanup;
+    }
+
+  struct spng_ihdr headers = {
+    .width = width,
+    .height = height,
+    .bit_depth = 8,
+    .color_type = SPNG_COLOR_TYPE_TRUECOLOR,
+    .compression_method = 0,
+    .filter_method = SPNG_FILTER_NONE,
+    .interlace_method = SPNG_INTERLACE_NONE,
+  };
+
+  err = spng_set_ihdr (ctx, &headers);
+  if (err)
+    {
+      fprintf (stderr, "show_preview_image() : Can't set headers.\n");
+      goto cleanup;
+    }
+
+
+  err = spng_encode_image (ctx, data, len, SPNG_FMT_PNG, SPNG_ENCODE_FINALIZE);
+  if (err)
+    {
+      fprintf (stderr, "show_preview_image() : Can't encode image: %s.\n", spng_strerror (err));
+      goto cleanup;
+    }
+
+  fclose (file);
+  file = NULL;
+
+  char cmd[250] = "";
+  snprintf (cmd, 249, "sxiv %s", tmp_file);
+  system (cmd);
+
+  cleanup:
+  if (ctb) free_ctb (ctb);
+  if (data) free (data);
+  if (file) fclose (file);
+  if (ctx) spng_ctx_free (ctx);
+  if (file_created) unlink (tmp_file);
+
+  return err;
+}
+
+/*
  * Inspect given file, showing its type and most relevant
  * information.
  */
@@ -126,7 +229,7 @@ inspect (const char *in)
   err = parse_ctb_file (ctb, in);
   if (err)
     {
-      fprintf (stderr, "Unrecognized file at %s\n", in);
+      fprintf (stderr, "inspect() : Unrecognized file at %s\n", in);
       ret = 1;
       goto cleanup;
     }

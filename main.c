@@ -5,10 +5,13 @@
 #include "utils.h"
 #include "convert.h"
 #include "inspect.h"
+#include "parser.h"
 
 typedef struct {
   bool v3;
   bool inspect_mode;
+  bool show_large_preview_mode;
+  bool show_small_preview_mode;
   const char *in;
   char *out;
 } options_t;
@@ -17,7 +20,7 @@ static void
 usage (const char *progname)
 {
   printf ("%s [-3h] [--help] <inputfile> [<outputfile>] \n\
-%s -i <file> \n\
+%s <-i|-l|-s> <file> \n\
   \n\
   Convert a sl1 file into a ctb file. \n\
   Output file will have the same name as input file with the \n\
@@ -28,11 +31,17 @@ usage (const char *progname)
   \n\
   When `-i` option is provided, inspect the given file instead.\n\
   \n\
+  When `-l` or `-s` option is provided, show preview image instead.\n\
+  `-l` shows the large preview, and `-s` shows the small preview.\n\
+  Those options require the sxiv program to be installed.\n\
+  \n\
   Options: \n\
   \n\
   -3        : output ctb version 3 \n\
   -4        : output ctb version 4 \n\
-  -i        ; inspect file. \n\
+  -i        : inspect file. \n\
+  -l        : show large preview. (require sxiv) \n\
+  -s        : show small preview. (require sxiv) \n\
   -h|--help : show this help \n\
   \n", progname, progname);
 }
@@ -40,11 +49,6 @@ usage (const char *progname)
 static void
 parse_options (options_t *options, const size_t argc, char ** const argv)
 {
-  options->inspect_mode = false;
-  options->v3 = false;
-  options->in = NULL;
-  options->out = NULL;
-
   for (size_t i = 1; i < argc; i++)
     {
       if (strncmp (argv[i], "-3", 3) == 0)
@@ -62,6 +66,18 @@ parse_options (options_t *options, const size_t argc, char ** const argv)
       if (strncmp (argv[i], "-i", 3) == 0)
         {
           options->inspect_mode = true;
+          continue;
+        }
+
+      if (strncmp (argv[i], "-l", 3) == 0)
+        {
+          options->show_large_preview_mode = true;
+          continue;
+        }
+
+      if (strncmp (argv[i], "-s", 3) == 0)
+        {
+          options->show_small_preview_mode = true;
           continue;
         }
 
@@ -114,15 +130,31 @@ int
 main (int argc, char **argv)
 {
   int ret = 0;
-  options_t options;
-  parse_options (&options, argc, argv);
+  options_t *options = xalloc (sizeof (options_t));
+  parse_options (options, argc, argv);
 
-  if (options.inspect_mode)
-    ret = inspect (options.in);
-  else
-    ret = convert (options.in, options.out, options.v3);
+  if (options->inspect_mode)
+    {
+      ret = inspect (options->in);
+      goto cleanup;
+    }
 
-  if (options.out) free (options.out);
+  if (options->show_large_preview_mode)
+    {
+      ret = show_preview_image (options->in, CTB_PREVIEW_LARGE);
+      goto cleanup;
+    }
 
+  if (options->show_small_preview_mode)
+    {
+      ret = show_preview_image (options->in, CTB_PREVIEW_SMALL);
+      goto cleanup;
+    }
+
+  ret = convert (options->in, options->out, options->v3);
+
+  cleanup:
+  if (options->out) free (options->out);
+  free (options);
   return ret;
 }
