@@ -160,12 +160,37 @@ parse_ctb_file (ctb_t *ctb, const char *in)
       goto cleanup;
     }
 
+  ctb->layer_headers = xalloc (sizeof (ctb_layer_header_t) * ctb->headers.layer_count);
+  fseek (file, ctb->headers.layer_table_offset, SEEK_SET);
+  for (size_t i = 0; i < ctb->headers.layer_count; i++)
+    {
+      count = fread ((void *) &ctb->layer_headers[i].base, sizeof (ctb_layer_header_base_t), 1, file);
+      if (count != 1)
+        {
+          fprintf (stderr, "parse_ctb_file() : Error while reading layer base metadata.\n");
+          ret = 1;
+          goto cleanup;
+        }
+    }
+
+  for (size_t i = 0; i < ctb->headers.layer_count; i++)
+    {
+      // extended metadata are 84 bytes before the mentioned address of the layer
+      fseek (file, ctb->layer_headers[i].base.data_offset - 84, SEEK_SET);
+      count = fread ((void *) &ctb->layer_headers[i].extended, sizeof (ctb_layer_header_extended_t), 1, file);
+      if (count != 1)
+        {
+          fprintf (stderr, "parse_ctb_file() : Error while reading layer extended metadata.\n");
+          ret = 1;
+          goto cleanup;
+        }
+    }
+
   cleanup:
   if (file) fclose (file);
   return ret;
 }
 
-// TODO
 /*
  * Read preview image for file `ctb` and store its content in `data`.
  *
@@ -243,4 +268,99 @@ read_preview_file (u_int8_t **data, size_t *len, const ctb_t *ctb, size_t type)
   if (file) fclose (file);
   if (compressed) free (compressed);
   return err;
+}
+
+/*
+ * Decrypt layer data in `raw_data` with key in `encryption_key`.
+ *
+ * Data in `raw_data` is edited in place.
+ */
+void
+decrypt_layer (u_int8_t *raw_data, u_int32_t encryption_key, u_int32_t layer_index, size_t len)
+{
+  if (!encryption_key)
+    return;
+
+  u_int32_t init = encryption_key * 0x2d83cdac + 0xd8a83423;
+  u_int32_t key = (layer_index * 0x1e1530cd + 0xec3d47cd) * init;
+  int index = 0;
+
+  for (size_t i = 0; i < len; i++)
+    {
+      u_int8_t k = (u_int8_t) (key >> (8 * index));
+      index++;
+
+      if ((index & 3) == 0)
+        {
+          key += init;
+          index = 0;
+        }
+
+      raw_data[i] = (u_int8_t) (raw_data[i] ^ k);
+    }
+}
+
+/*
+ * Decode the RLE of layer from `raw_data` to `data`.
+ *
+ * `data` memory will be allocated, you're responsible to free it.
+ *
+ * The length of decoded data will be stored in `data_len`.
+ *
+ * Return non-zero in case of error.
+ */
+int
+decode_layer (u_int8_t **data, size_t *data_len, const u_int8_t *raw_data, size_t raw_len, const ctb_t *ctb, size_t *nonzero_pixels_count)
+{
+  *data = xalloc (ctb->headers.resolution_x * ctb->headers.resolution_y);
+  *data_len = 0;
+
+  for (size_t i = 0; i < raw_len; i++)
+    {
+      u_int8_t code = raw_data[i];
+      int stride = 1;
+
+      if ((code & 0x80) == 0x80)
+        {
+          code &= 0x7f; // extract run length
+          i++;
+
+          int stride_len = raw_data[i];
+
+          if ((stride_len & 0x80) == 0)
+            stride = stride_len;
+          else if ((stride_len & 0xc0) == 0x80)
+            {
+              stride = ((stride_len & 0x3f) << 8) + raw_data[i + 1];
+              i++;
+            }
+          else if ((stride_len & 0xe0) == 0xc0)
+            {
+              stride = ((stride_len & 0x1f) << 16) + (raw_data[i + 1] << 8) + raw_data[i + 2];
+              i += 2;
+            }
+          else if ((stride_len & 0xf0) == 0xe0)
+            {
+              stride = ((stride_len & 0xf) << 24) + (raw_data[i + 1] << 16) + (raw_data[i + 2] << 8) + raw_data[i + 3];
+              i += 3;
+            }
+          else
+            {
+              fprintf (stderr, "decode_layer() : bogus layer data.\n");
+              return 1;
+            }
+        }
+
+      // extend from 7 bits to 8 bits
+      if (code != 0)
+        {
+          code = (code << 1) | 1;
+          (*nonzero_pixels_count)++;
+        }
+
+      for (int j = 0; j < stride; j++)
+        (*data)[(*data_len)++] = code;
+    }
+
+  return 0;
 }

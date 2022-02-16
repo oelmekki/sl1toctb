@@ -12,6 +12,8 @@ typedef struct {
   bool inspect_mode;
   bool show_large_preview_mode;
   bool show_small_preview_mode;
+  bool export_layer_data;
+  const char *export_dir;
   const char *in;
   char *out;
 } options_t;
@@ -21,6 +23,7 @@ usage (const char *progname)
 {
   printf ("%s [-3h] [--help] <inputfile> [<outputfile>] \n\
 %s <-i|-l|-s> <file> \n\
+%s -e <dir> <file> \n\
   \n\
   Convert a sl1 file into a ctb file. \n\
   Output file will have the same name as input file with the \n\
@@ -42,8 +45,9 @@ usage (const char *progname)
   -i        : inspect file. \n\
   -l        : show large preview. (require sxiv) \n\
   -s        : show small preview. (require sxiv) \n\
+  -e        : export layer data to <dir> \n\
   -h|--help : show this help \n\
-  \n", progname, progname);
+  \n", progname, progname, progname);
 }
 
 static void
@@ -85,6 +89,19 @@ parse_options (options_t *options, const size_t argc, char ** const argv)
         {
           usage (argv[0]);
           exit (0);
+        }
+
+      if (strncmp (argv[i], "-e", 3) == 0)
+        {
+          if (argc < i+2)
+            {
+              usage (argv[0]);
+              exit (1);
+            }
+
+          options->export_layer_data = true;
+          options->export_dir = argv[++i];
+          continue;
         }
 
       if (!options->in)
@@ -129,32 +146,38 @@ parse_options (options_t *options, const size_t argc, char ** const argv)
 int
 main (int argc, char **argv)
 {
-  int ret = 0;
+  int err = 0;
   options_t *options = xalloc (sizeof (options_t));
   parse_options (options, argc, argv);
 
   if (options->inspect_mode)
     {
-      ret = inspect (options->in);
+      err = inspect (options->in);
       goto cleanup;
     }
 
   if (options->show_large_preview_mode)
     {
-      ret = show_preview_image (options->in, CTB_PREVIEW_LARGE);
+      err = show_preview_image (options->in, CTB_PREVIEW_LARGE);
       goto cleanup;
     }
 
   if (options->show_small_preview_mode)
     {
-      ret = show_preview_image (options->in, CTB_PREVIEW_SMALL);
+      err = show_preview_image (options->in, CTB_PREVIEW_SMALL);
       goto cleanup;
     }
 
-  ret = convert (options->in, options->out, options->v3);
+  if (options->export_layer_data)
+    {
+      err = export_layers (options->in, options->export_dir);
+      goto cleanup;
+    }
+
+  err = convert (options->in, options->out, options->v3);
 
   cleanup:
   if (options->out) free (options->out);
   free (options);
-  return ret;
+  return err;
 }

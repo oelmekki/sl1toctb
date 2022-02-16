@@ -3,11 +3,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <sys/stat.h>
+#include "utils.h"
 #include "parser.h"
 #include "spng.h"
 
 static void   display_sl1     (sl1_t *sl1);
 static void   display_ctb     (ctb_t *ctb);
+static int    export_layer    (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, int i);
 
 // TODO
 /*
@@ -18,7 +21,6 @@ display_sl1 (sl1_t *sl1)
 {
 }
 
-// TODO
 /*
  * Display meta data about given ctb file.
  */
@@ -104,6 +106,124 @@ display_ctb (ctb_t *ctb)
   printf ("Resolution: %dx%d\n", ctb->small_preview.resolution_x, ctb->small_preview.resolution_y);
 }
 
+/*
+ * Extract next image in `file` to the directory `dir`,
+ * naming it with `i`.
+ *
+ * `file` must be already seek to the proper entry in the
+ * layer headers table.
+ *
+ * Returns non-zero in case of error.
+ */
+static int
+export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, int layer_index)
+{
+  int err = 0;
+  u_int8_t *raw_data = NULL;
+  u_int8_t *data = NULL;
+  spng_ctx *ctx = NULL;
+  FILE *file = NULL;
+
+  ctb_layer_header_t *hdr = &ctb->layer_headers[layer_index];
+
+  err = fseek (ctb_file, hdr->base.data_offset, SEEK_SET);
+  if (err)
+    {
+      fprintf (stderr, "export_layer() : can't seek ctb file.\n");
+      goto cleanup;
+    }
+
+  raw_data = xalloc (hdr->base.data_len);
+  size_t count = fread (raw_data, hdr->base.data_len, 1, ctb_file);
+  if (count != 1)
+    {
+      err = 1;
+      fprintf (stderr, "export_layer() : can't read layer raw data.\n");
+      goto cleanup;
+    }
+
+  if (ctb->headers.encryption_key)
+    decrypt_layer (raw_data, ctb->headers.encryption_key, layer_index, hdr->base.data_len);
+
+  size_t data_len = 0;
+  size_t nonzero_pixels_count = 0;
+  err = decode_layer (&data, &data_len, raw_data, hdr->base.data_len, ctb, &nonzero_pixels_count);
+  if (err)
+    {
+      fprintf (stderr, "export_layer() : can't decode layer data.\n");
+      goto cleanup;
+    }
+
+  fprintf (metadata_file, "[Layer %d]\n", layer_index);
+  fprintf (metadata_file, "Non-zero pixels: %ld\n", nonzero_pixels_count);
+  fprintf (metadata_file, "Z: %.3f\n", hdr->base.z);
+  fprintf (metadata_file, "Exposure: %.3f secs\n", hdr->base.exposure);
+  fprintf (metadata_file, "Light Off Time: %.3f secs\n", hdr->base.light_off_time);
+  fprintf (metadata_file, "Lift distance: %.3f mm\n", hdr->extended.lift_distance);
+  fprintf (metadata_file, "Lift speed: %.3f mm/s\n", hdr->extended.lift_speed);
+  fprintf (metadata_file, "Lift distance2: %.3f mm\n", hdr->extended.lift_distance2);
+  fprintf (metadata_file, "Lift speed2: %.3f mm/s\n", hdr->extended.lift_speed2);
+  fprintf (metadata_file, "Retract speed: %.3f mm/s\n", hdr->extended.retract_speed);
+  fprintf (metadata_file, "Retract distance2: %.3f mm\n", hdr->extended.retract_distance2);
+  fprintf (metadata_file, "Retract speed2: %.3f mm/s\n", hdr->extended.retract_speed2);
+  fprintf (metadata_file, "Rest time before lift: %.3f secs\n", hdr->extended.rest_time_before_lift);
+  fprintf (metadata_file, "Rest time after lift: %.3f secs\n", hdr->extended.rest_time_after_lift);
+  fprintf (metadata_file, "Rest time after retract: %.3f secs\n", hdr->extended.rest_time_after_retract);
+  fprintf (metadata_file, "Light PWM: %.3f\n", hdr->extended.light_pwm);
+  fputs ("\n", metadata_file);
+
+  char filename[250] = "";
+  snprintf (filename, 249, "%s/%04d.png", dir, layer_index);
+  file = fopen (filename, "wb");
+  if (!file)
+    {
+      err = 1;
+      fprintf (stderr, "can't open file for writing: %s\n", filename);
+      goto cleanup;
+    }
+
+  ctx = spng_ctx_new (SPNG_CTX_ENCODER);
+
+  err = spng_set_png_file (ctx, file);
+  if (err)
+    {
+      fprintf (stderr, "export_layer() : Error while passing file to spng.\n");
+      err = 1;
+      goto cleanup;
+    }
+
+  struct spng_ihdr headers = {
+    .width = ctb->headers.resolution_x,
+    .height = ctb->headers.resolution_y,
+    .bit_depth = 8,
+    .color_type = SPNG_COLOR_TYPE_GRAYSCALE,
+    .compression_method = 0,
+    .filter_method = SPNG_FILTER_NONE,
+    .interlace_method = SPNG_INTERLACE_NONE,
+  };
+
+  err = spng_set_ihdr (ctx, &headers);
+  if (err)
+    {
+      fprintf (stderr, "export_layer() : Can't set headers.\n");
+      goto cleanup;
+    }
+
+  err = spng_encode_image (ctx, data, data_len, SPNG_FMT_PNG, SPNG_ENCODE_FINALIZE);
+  if (err)
+    {
+      fprintf (stderr, "export_layer() : Can't encode image: %s.\n", spng_strerror (err));
+      goto cleanup;
+    }
+
+  cleanup:
+  if (raw_data) free (raw_data);
+  if (data) free (data);
+  if (file) fclose (file);
+  if (ctx) spng_ctx_free (ctx);
+  return err;
+}
+
 // PUBLIC
 
 /*
@@ -114,7 +234,7 @@ display_ctb (ctb_t *ctb)
  * Returns non-zero in case of error.
  */
 int
-show_preview_image (const char *in, int image_type)
+show_preview_image (const char *filename, int image_type)
 {
   int err = 0;
   u_int8_t *data = NULL;
@@ -126,10 +246,10 @@ show_preview_image (const char *in, int image_type)
   bool file_created = false;
 
   ctb_t *ctb = new_ctb ();
-  err = parse_ctb_file (ctb, in);
+  err = parse_ctb_file (ctb, filename);
   if (err)
     {
-      fprintf (stderr, "show_preview_image() : Unrecognized file at %s\n", in);
+      fprintf (stderr, "show_preview_image() : Unrecognized file at %s\n", filename);
       goto cleanup;
     }
 
@@ -244,4 +364,79 @@ inspect (const char *in)
   if (sl1) free_sl1 (sl1);
   if (ctb) free_ctb (ctb);
   return ret;
+}
+
+/*
+ * Export each layer image from ctb file at `filename` to the directory at
+ * `dir`.
+ *
+ * Returns non-zero in case of error.
+ */
+int
+export_layers (const char *filename, const char *dir)
+{
+  int err = 0;
+  ctb_t *ctb = NULL;
+  FILE *ctb_file = NULL;
+  FILE *metadata_file = NULL;
+  char metadata_filename[750] = "";
+  struct stat s;
+
+  err = stat (dir, &s);
+  if (err)
+    {
+      fprintf (stderr, "export_layers() : directory %s does not exists.\n", dir);
+      goto cleanup;
+    }
+
+  if (!S_ISDIR (s.st_mode))
+    {
+      fprintf (stderr, "export_layers() : %s is not a directory.\n", dir);
+      err = 1;
+      goto cleanup;
+    }
+
+  snprintf (metadata_filename, 749, "%s/metadata.txt", dir);
+
+  metadata_file = fopen (metadata_filename, "w");
+  if (!metadata_file)
+    {
+      fprintf (stderr, "export_layers() : can't open file %s for writing.\n", metadata_filename);
+      err = 1;
+      goto cleanup;
+    }
+
+  ctb_file = fopen (filename, "rb");
+  if (!ctb_file)
+    {
+      fprintf (stderr, "export_layers() : can't read file %s.\n", filename);
+      err = 1;
+      goto cleanup;
+    }
+
+  ctb = new_ctb ();
+  err = parse_ctb_file (ctb, filename);
+  if (err)
+    {
+      fprintf (stderr, "export_layers() : Can't parse ctb file.\n");
+      goto cleanup;
+    }
+
+  fseek (ctb_file, ctb->headers.layer_table_offset, SEEK_SET);
+
+  for (size_t i = 0; i < ctb->headers.layer_count; i++)
+    {
+      err = export_layer (ctb, ctb_file, metadata_file, dir, i);
+      if (err)
+        {
+          fprintf (stderr, "export_layers() : error while processing layer %ld.\n", i);
+          goto cleanup;
+        }
+    }
+
+  cleanup:
+  if (ctb) free_ctb (ctb);
+  if (ctb_file) fclose (ctb_file);
+  if (metadata_file) fclose (metadata_file);
+  return err;
 }

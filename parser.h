@@ -124,12 +124,45 @@ typedef struct {
 } ctb_preview_t;
 
 typedef struct {
+  float z;
+  float exposure;       // in seconds
+  float light_off_time; // in seconds
+  u_int32_t data_offset;
+  u_int32_t data_len;
+  u_int32_t unknown1;
+  u_int32_t table_size;
+  u_int32_t unknown2;
+  u_int32_t unknown3;
+} ctb_layer_header_base_t;
+
+typedef struct {
+  u_int32_t total_size;
+  float lift_distance;
+  float lift_speed;
+  float lift_distance2;
+  float lift_speed2;
+  float retract_speed;
+  float retract_distance2;
+  float retract_speed2;
+  float rest_time_before_lift;
+  float rest_time_after_lift;
+  float rest_time_after_retract;
+  float light_pwm;
+} ctb_layer_header_extended_t;
+
+typedef struct {
+  ctb_layer_header_base_t base;
+  ctb_layer_header_extended_t extended;
+} ctb_layer_header_t;
+
+typedef struct {
   ctb_headers_t headers;
   ctb_print_config_t print_config;
   ctb_slicer_config_t slicer_config;
   ctb_print_config_v4_t print_config_v4;
   ctb_preview_t large_preview;
   ctb_preview_t small_preview;
+  ctb_layer_header_t *layer_headers;
   char *file_path;
   char *machine_name;
   char *disclaimer;
@@ -150,6 +183,8 @@ void      free_ctb            (ctb_t *c);
 int       parse_sl1_file      (sl1_t *sl1, const char *in);
 int       parse_ctb_file      (ctb_t *ctb, const char *in);
 int       read_preview_file   (u_int8_t **data, size_t *len, const ctb_t *c, size_t type);
+void      decrypt_layer       (u_int8_t *raw_data, u_int32_t encryption_key, u_int32_t layer_index, size_t len);
+int       decode_layer        (u_int8_t **data, size_t *data_len, const u_int8_t *raw_data, size_t raw_len, const ctb_t *ctb, size_t *nonzero_pixels_count);
 
 
 #endif
