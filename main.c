@@ -158,13 +158,13 @@ main (int argc, char **argv)
 
   if (options->show_large_preview_mode)
     {
-      err = show_preview_image (options->in, CTB_PREVIEW_LARGE);
+      err = show_preview_image (options->in, PREVIEW_LARGE);
       goto cleanup;
     }
 
   if (options->show_small_preview_mode)
     {
-      err = show_preview_image (options->in, CTB_PREVIEW_SMALL);
+      err = show_preview_image (options->in, PREVIEW_SMALL);
       goto cleanup;
     }
 
@@ -172,6 +172,13 @@ main (int argc, char **argv)
     {
       err = export_layers (options->in, options->export_dir);
       goto cleanup;
+    }
+
+  if (strncmp (options->in, options->out, 1000) == 0)
+    {
+      fprintf (stderr, "main.c: Please specify an output file different from input file.\n\n");
+      usage (argv[0]);
+      exit (1);
     }
 
   err = convert (options->in, options->out, options->v3);

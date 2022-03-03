@@ -2,9 +2,172 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <zip.h>
 #include "utils.h"
 #include "parser.h"
+#include "spng.h"
 
+
+void  sl1_set_parsed_attribute  (sl1_t *sl1, const char *attribute, const char *value);
+int   sl1_parse_file            (sl1_t *sl1, zip_file_t *file);
+
+
+void
+sl1_set_parsed_attribute (sl1_t *sl1, const char *attribute, const char *value)
+{
+  if (strncmp (attribute, "bed_shape", 100) == 0)
+    sl1->bed_shape = strdup (value);
+
+  if (strncmp (attribute, "default_sla_material_profile", 100) == 0)
+    sl1->default_sla_material_profile = strdup (value);
+
+  if (strncmp (attribute, "default_sla_print_profile", 100) == 0)
+    sl1->default_sla_print_profile = strdup (value);
+
+  if (strncmp (attribute, "printer_notes", 100) == 0)
+    sl1->printer_notes = strdup (value);
+
+  if (strncmp (attribute, "printer_settings_id", 100) == 0)
+    sl1->printer_settings_id = strdup (value);
+
+  if (strncmp (attribute, "sla_material_settings_id", 100) == 0)
+    sl1->sla_material_settings_id = strdup (value);
+
+  if (strncmp (attribute, "sla_print_settings_id", 100) == 0)
+    sl1->sla_print_settings_id = strdup (value);
+
+
+  if (strncmp (attribute, "bottle_cost", 100) == 0)
+    sl1->bottle_cost = atof (value);
+
+  if (strncmp (attribute, "bottle_volume", 100) == 0)
+    sl1->bottle_volume = atof (value);
+
+  if (strncmp (attribute, "bottle_weight", 100) == 0)
+    sl1->bottle_weight = atof (value);
+
+  if (strncmp (attribute, "display_height", 100) == 0)
+    sl1->display_height = atof (value);
+
+  if (strncmp (attribute, "exposure_time", 100) == 0)
+    sl1->exposure_time = atof (value);
+
+  if (strncmp (attribute, "initial_layer_height", 100) == 0)
+    sl1->initial_layer_height = atof (value);
+
+  if (strncmp (attribute, "layer_height", 100) == 0)
+    sl1->layer_height = atof (value);
+
+  if (strncmp (attribute, "max_print_height", 100) == 0)
+    sl1->max_print_height = atof (value);
+
+
+  if (strncmp (attribute, "display_orientation", 100) == 0)
+    sl1->display_orientation = atoi (value);
+
+  if (strncmp (attribute, "display_pixels_x", 100) == 0)
+    sl1->display_pixels_x = atoi (value);
+
+  if (strncmp (attribute, "display_pixels_y", 100) == 0)
+    sl1->display_pixels_y = atoi (value);
+
+  if (strncmp (attribute, "display_width", 100) == 0)
+    sl1->display_width = atoi (value);
+
+  if (strncmp (attribute, "faded_layers", 100) == 0)
+    sl1->faded_layers = atoi (value);
+
+  if (strncmp (attribute, "fast_tilt_time", 100) == 0)
+    sl1->fast_tilt_time = atoi (value);
+
+  if (strncmp (attribute, "initial_exposure_time", 100) == 0)
+    sl1->initial_exposure_time = atoi (value);
+
+  if (strncmp (attribute, "numFast", 100) == 0)
+    sl1->num_fast_layers = atoi (value);
+
+  if (strncmp (attribute, "numSlow", 100) == 0)
+    sl1->num_slow_layers = atoi (value);
+
+  if (strncmp (attribute, "printTime", 100) == 0)
+    sl1->print_time = atoi (value);
+
+
+  if (strncmp (attribute, "display_mirror_x", 100) == 0)
+    sl1->display_mirror_x = atoi (value);
+
+  if (strncmp (attribute, "display_mirror_y", 100) == 0)
+    sl1->display_mirror_y = atoi (value);
+}
+
+int
+sl1_parse_file (sl1_t *sl1, zip_file_t *file)
+{
+  int err = 0;
+  char content[1000001] = "";
+
+  int count = zip_fread (file, content, 1000000);
+  if (count == -1)
+    {
+      fprintf (stderr, "parser.c: sl1_parse_file() : can't read prusaslicer.ini in the sl1 file.");
+      err = 1;
+      goto cleanup;
+    }
+
+  content[count] = 0;
+  char line[5001] = "";
+  size_t line_i = 0;
+
+  for (int i = 0; i < count; i++)
+    {
+      if (content[i] == '\n' || content[i] == '\r')
+        {
+          line[line_i] = 0;
+
+          char attribute[5001] = "";
+          char value[5001] = "";
+          int split_pos = 0;
+
+          for (size_t j = 0; j < line_i; j++)
+            {
+              if (line[j] == ' ')
+                {
+                  split_pos = j;
+                  attribute[j] = 0;
+                  break;
+                }
+
+              attribute[j] = line[j];
+            }
+
+          split_pos += 3; // move over the ' = '
+
+          for (size_t j = split_pos; j < line_i; j++)
+            value[j-split_pos] = line[j];
+
+          sl1_set_parsed_attribute (sl1, attribute, value);
+
+          line[0] = 0;
+          line_i = 0;
+          continue;
+        }
+
+      line[line_i++] = content[i];
+      if (line_i == 4999)
+        {
+          line[5000] = 0;
+          fprintf (stderr, "parser.c: sl1_parse_file() : Line is way too long : %s\n", line);
+          err = 1;
+          goto cleanup;
+        }
+    }
+
+  cleanup:
+  return err;
+}
+
+
+// PUBLIC
 
 sl1_t *
 new_sl1 ()
@@ -17,6 +180,15 @@ void
 free_sl1 (sl1_t *s)
 {
   if (!s) return;
+
+  if (s->file_path) free (s->file_path);
+  if (s->bed_shape) free (s->bed_shape);
+  if (s->default_sla_material_profile) free (s->default_sla_material_profile);
+  if (s->default_sla_print_profile) free (s->default_sla_print_profile);
+  if (s->printer_notes) free (s->printer_notes);
+  if (s->printer_settings_id) free (s->printer_settings_id);
+  if (s->sla_material_settings_id) free (s->sla_material_settings_id);
+  if (s->sla_print_settings_id) free (s->sla_print_settings_id);
 
   free (s);
 }
@@ -34,21 +206,135 @@ free_ctb (ctb_t *c)
   if (!c) return;
   if (c->file_path) free (c->file_path);
   if (c->machine_name) free (c->machine_name);
-  if (c->disclaimer) free (c->disclaimer);
+  if (c->v4_disclaimer) free (c->v4_disclaimer);
 
   free (c);
 }
 
-// TODO
+/*
+ * Tells if giving path is a sl1 file.
+ */
+bool
+is_sl1_file (const char *in)
+{
+  zip_t *archive = NULL;
+  int err = 0;
+  bool sl1_file = false;
+
+  archive = zip_open (in, ZIP_RDONLY, &err);
+  if (err)
+    goto cleanup;
+
+  if (zip_name_locate (archive, "prusaslicer.ini", 0) == -1)
+    goto cleanup;
+
+  if (zip_name_locate (archive, "config.ini", 0) == -1)
+    goto cleanup;
+
+  sl1_file = true;
+    
+  cleanup:
+  if (archive) zip_close (archive);
+  return sl1_file;
+}
+
+/*
+ * Tells if giving path is a ctb file.
+ */
+bool
+is_ctb_file (const char *in)
+{
+  bool is_ctb = false;
+  ctb_t *ctb = NULL;
+  FILE *file = fopen (in, "rb");
+  if (!file)
+    {
+      fprintf (stderr, "parser.c: is_ctb_file() : can't open file %s\n", in);
+      goto cleanup;
+    }
+
+  ctb = new_ctb ();
+
+  size_t count = fread ((void *) &ctb->headers, sizeof (ctb_headers_t), 1, file);
+  if (count != 1)
+    {
+      fprintf (stderr, "parser.c: is_ctb_file() : Error while reading file's headers.\n");
+      goto cleanup;
+    }
+
+  if (ctb->headers.magic == 0x12fd0086)
+    is_ctb = true;
+
+  cleanup:
+  if (file) fclose (file);
+  if (ctb) free_ctb (ctb);
+  return is_ctb;
+}
+
 /*
  * Read a sl1 file at `in` and initialize the `sl1` struct with it.
  *
  * Returns 0 if successful, nonzero otherwise.
  */
 int
-parse_sl1_file (sl1_t *sl1, const char *in)
+parse_sl1_archive (sl1_t *sl1, const char *in)
 { 
-  return 1; // FIXME writing ctb parser first
+  zip_t *archive = NULL;
+  zip_file_t *file = NULL;
+  int err = 0;
+
+  sl1->file_path = strdup (in);
+
+  if (!is_sl1_file (in))
+    {
+      fprintf (stderr, "parser.c: parse_sl1_archive() : this is not a sl1 file.\n");
+      err = 1;
+      goto cleanup;
+    }
+
+  archive = zip_open (in, ZIP_RDONLY, &err);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: parse_sl1_archive() : can't open sl1 archive.\n");
+      goto cleanup;
+    }
+
+  file = zip_fopen (archive, "prusaslicer.ini", 0);
+  if (!file)
+    {
+      fprintf (stderr, "parser.c: parse_sl1_archive() : can't open prusaslicer.ini in the sl1 file.");
+      err = 1;
+      goto cleanup;
+    }
+
+  err = sl1_parse_file (sl1, file);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: parse_sl1_archive() : can't parse prusaslicer.ini.");
+      goto cleanup;
+    }
+
+  zip_fclose (file);
+
+  file = zip_fopen (archive, "config.ini", 0);
+  if (!file)
+    {
+      fprintf (stderr, "parser.c: parse_sl1_archive() : can't open config.ini in the sl1 file.");
+      err = 1;
+      goto cleanup;
+    }
+
+  err = sl1_parse_file (sl1, file);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: parse_sl1_archive() : can't parse config.ini.");
+      goto cleanup;
+    }
+
+  cleanup:
+  if (file) zip_fclose (file);
+  if (archive) zip_close (archive);
+  return err;
 }
 
 /*
@@ -63,14 +349,14 @@ parse_ctb_file (ctb_t *ctb, const char *in)
   ctb->file_path = strdup (in);
   if (!ctb->file_path)
     {
-      fprintf (stderr, "Not enough memory.");
+      fprintf (stderr, "parser.c: Not enough memory.");
       exit (1);
     }
 
   FILE *file = fopen (in, "rb");
   if (!file)
     {
-      fprintf (stderr, "parse_ctb_file() : can't open file %s\n", in);
+      fprintf (stderr, "parser.c: parse_ctb_file() : can't open file %s\n", in);
       ret = 1;
       goto cleanup;
     }
@@ -78,14 +364,14 @@ parse_ctb_file (ctb_t *ctb, const char *in)
   size_t count = fread ((void *) &ctb->headers, sizeof (ctb_headers_t), 1, file);
   if (count != 1)
     {
-      fprintf (stderr, "parse_ctb_file() : Error while reading file's headers.\n");
+      fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading file's headers.\n");
       ret = 1;
       goto cleanup;
     }
 
   if (ctb->headers.magic != 0x12fd0086)
     {
-      fprintf (stderr, "parse_ctb_file() : This is not a ctb file.\n");
+      fprintf (stderr, "parser.c: parse_ctb_file() : This is not a ctb file.\n");
       ret = 1;
       goto cleanup;
     }
@@ -94,7 +380,7 @@ parse_ctb_file (ctb_t *ctb, const char *in)
   count = fread ((void *) &ctb->print_config, sizeof (ctb_print_config_t), 1, file);
   if (count != 1)
     {
-      fprintf (stderr, "parse_ctb_file() : Error while reading file's print config.\n");
+      fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading file's print config.\n");
       ret = 1;
       goto cleanup;
     }
@@ -103,7 +389,7 @@ parse_ctb_file (ctb_t *ctb, const char *in)
   count = fread ((void *) &ctb->slicer_config, sizeof (ctb_slicer_config_t), 1, file);
   if (count != 1)
     {
-      fprintf (stderr, "parse_ctb_file() : Error while reading file's slicer config.\n");
+      fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading file's slicer config.\n");
       ret = 1;
       goto cleanup;
     }
@@ -113,7 +399,7 @@ parse_ctb_file (ctb_t *ctb, const char *in)
   count = fread ((void *) ctb->machine_name, ctb->slicer_config.machine_type_len, 1, file);
   if (count != 1)
     {
-      fprintf (stderr, "parse_ctb_file() : Error while reading machine name.\n");
+      fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading machine name.\n");
       ret = 1;
       goto cleanup;
     }
@@ -125,28 +411,28 @@ parse_ctb_file (ctb_t *ctb, const char *in)
       count = fread ((void *) &ctb->print_config_v4, sizeof (ctb_print_config_v4_t), 1, file);
       if (count != 1)
         {
-          fprintf (stderr, "parse_ctb_file() : Error while reading file's print config v4.\n");
+          fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading file's print config v4.\n");
           ret = 1;
           goto cleanup;
         }
 
       fseek (file, ctb->print_config_v4.disclaimer_offset, SEEK_SET);
-      ctb->disclaimer = xalloc (ctb->print_config_v4.disclaimer_len + 1);
-      count = fread ((void *) ctb->disclaimer, ctb->print_config_v4.disclaimer_len, 1, file);
+      ctb->v4_disclaimer = xalloc (ctb->print_config_v4.disclaimer_len + 1);
+      count = fread ((void *) ctb->v4_disclaimer, ctb->print_config_v4.disclaimer_len, 1, file);
       if (count != 1)
         {
-          fprintf (stderr, "parse_ctb_file() : Error while reading disclaimer.\n");
+          fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading disclaimer.\n");
           ret = 1;
           goto cleanup;
         }
-      ctb->disclaimer[ctb->print_config_v4.disclaimer_len] = 0;
+      ctb->v4_disclaimer[ctb->print_config_v4.disclaimer_len] = 0;
     }
 
   fseek (file, ctb->headers.large_preview_offset, SEEK_SET);
   count = fread ((void *) &ctb->large_preview, sizeof (ctb_preview_t), 1, file);
   if (count != 1)
     {
-      fprintf (stderr, "parse_ctb_file() : Error while reading file's large preview metadata.\n");
+      fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading file's large preview metadata.\n");
       ret = 1;
       goto cleanup;
     }
@@ -155,7 +441,7 @@ parse_ctb_file (ctb_t *ctb, const char *in)
   count = fread ((void *) &ctb->small_preview, sizeof (ctb_preview_t), 1, file);
   if (count != 1)
     {
-      fprintf (stderr, "parse_ctb_file() : Error while reading file's small preview metadata.\n");
+      fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading file's small preview metadata.\n");
       ret = 1;
       goto cleanup;
     }
@@ -167,7 +453,7 @@ parse_ctb_file (ctb_t *ctb, const char *in)
       count = fread ((void *) &ctb->layer_headers[i].base, sizeof (ctb_layer_header_base_t), 1, file);
       if (count != 1)
         {
-          fprintf (stderr, "parse_ctb_file() : Error while reading layer base metadata.\n");
+          fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading layer base metadata.\n");
           ret = 1;
           goto cleanup;
         }
@@ -180,7 +466,7 @@ parse_ctb_file (ctb_t *ctb, const char *in)
       count = fread ((void *) &ctb->layer_headers[i].extended, sizeof (ctb_layer_header_extended_t), 1, file);
       if (count != 1)
         {
-          fprintf (stderr, "parse_ctb_file() : Error while reading layer extended metadata.\n");
+          fprintf (stderr, "parser.c: parse_ctb_file() : Error while reading layer extended metadata.\n");
           ret = 1;
           goto cleanup;
         }
@@ -194,13 +480,15 @@ parse_ctb_file (ctb_t *ctb, const char *in)
 /*
  * Read preview image for file `ctb` and store its content in `data`.
  *
- * To select which image to preview, pass CTB_PREVIEW_LARGE or
- * CTB_PREVIEW_SMALL as `type`.
+ * `data` is an uncompressed bitmap.
+ *
+ * To select which image to preview, pass PREVIEW_LARGE or
+ * PREVIEW_SMALL as `type`.
  *
  * Returns non-zero in case of error.
  */
 int
-read_preview_file (u_int8_t **data, size_t *len, const ctb_t *ctb, size_t type)
+ctb_read_preview_file (uint8_t **data, size_t *len, const ctb_t *ctb, size_t type)
 {
   int err = 0;
   char *compressed = NULL;
@@ -208,7 +496,7 @@ read_preview_file (u_int8_t **data, size_t *len, const ctb_t *ctb, size_t type)
 
   if (!ctb->file_path)
     {
-      fprintf (stderr, "read_preview_file() : internal error: the ctb object has no file_path attribute.\n");
+      fprintf (stderr, "parser.c: ctb_read_preview_file() : internal error: the ctb object has no file_path attribute.\n");
       err = 1;
       goto cleanup;
     }
@@ -216,34 +504,34 @@ read_preview_file (u_int8_t **data, size_t *len, const ctb_t *ctb, size_t type)
   file = fopen (ctb->file_path, "rb");
   if (!file)
     {
-      fprintf (stderr, "read_preview_file() : can't open file %s\n", ctb->file_path);
+      fprintf (stderr, "parser.c: ctb_read_preview_file() : can't open file %s\n", ctb->file_path);
       err = 1;
       goto cleanup;
     }
 
-  const ctb_preview_t *preview = type == CTB_PREVIEW_LARGE ? &ctb->large_preview : &ctb->small_preview;
+  const ctb_preview_t *preview = type == PREVIEW_LARGE ? &ctb->large_preview : &ctb->small_preview;
 
   err = fseek (file, preview->image_offset, SEEK_SET);
   if (err)
     {
-      fprintf (stderr, "read_preview_file() : can't find preview image in file %s\n", ctb->file_path);
+      fprintf (stderr, "parser.c: ctb_read_preview_file() : can't find preview image in file %s\n", ctb->file_path);
       goto cleanup;
     }
 
   compressed = xalloc (preview->image_length);
-  size_t count = fread (compressed, preview->image_length, 1, file);
-  if (count != 1)
+  size_t count = fread (compressed, 1, preview->image_length, file);
+  if (count != preview->image_length)
     {
-      fprintf (stderr, "read_preview_file() : can't read file %s\n", ctb->file_path);
+      fprintf (stderr, "parser.c: ctb_read_preview_file() : can't read file %s\n", ctb->file_path);
       err = 1;
       goto cleanup;
     }
 
-  *data = xalloc (preview->resolution_x * preview->resolution_y * sizeof (u_int8_t) * 3);
+  *data = xalloc (preview->resolution_x * preview->resolution_y * sizeof (uint8_t) * 3);
   *len = 0;
   for (size_t i = 0; i < preview->image_length; i++)
     {
-      u_int32_t dot = (u_int32_t)((compressed[i] & 0xFF) | ((compressed[i+1] & 0xFF) << 8));
+      uint32_t dot = (uint32_t)((compressed[i] & 0xFF) | ((compressed[i+1] & 0xFF) << 8));
       i++;
 
       char red = (char)(((dot >> 11) & 0x1F) << 3);
@@ -271,23 +559,250 @@ read_preview_file (u_int8_t **data, size_t *len, const ctb_t *ctb, size_t type)
 }
 
 /*
+ * Read preview image for file `sl1` and store its content in `data`.
+ *
+ * `data` is an uncompressed bitmap.
+ *
+ * To select which image to preview, pass PREVIEW_LARGE or
+ * PREVIEW_SMALL as `type`.
+ *
+ * Returns non-zero in case of error.
+ */
+int
+sl1_read_preview_file (uint8_t **data, size_t *len, const sl1_t *sl1, size_t type)
+{
+  int err = 0;
+  zip_t *archive = NULL;
+  zip_file_t *file = NULL;
+  spng_ctx *ctx = NULL;
+  uint8_t *png = NULL;
+
+  archive = zip_open (sl1->file_path, ZIP_RDONLY, &err);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't open sl1 archive.\n");
+      goto cleanup;
+    }
+
+  const char *filename = type == PREVIEW_LARGE ? "thumbnail/thumbnail800x480.png" : "thumbnail/thumbnail400x400.png";
+
+  zip_stat_t info;
+  err = zip_stat (archive, filename, 0, &info);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't stat preview file.\n");
+      goto cleanup;
+    }
+
+  file = zip_fopen (archive, filename, 0);
+  if (!file)
+    {
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't open thumbnail file in the sl1 file.");
+      err = 1;
+      goto cleanup;
+    }
+
+  size_t png_len = info.size;
+  png = xalloc (png_len);
+
+  int count = zip_fread (file, png, png_len);
+  if (count < 0 || (size_t) count != png_len)
+    {
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't read png file.");
+      err = 1;
+      goto cleanup;
+    }
+
+  ctx = spng_ctx_new (0);
+  if (!ctx)
+    {
+      err = 1;
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't create spng context.\n");
+      goto cleanup;
+    }
+
+  err = spng_set_png_buffer (ctx, png, png_len);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't set input buffer in spng.\n");
+      goto cleanup;
+    }
+
+  struct spng_ihdr headers;
+  err = spng_get_ihdr (ctx, &headers);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't set parse headers.\n");
+      goto cleanup;
+    }
+
+  if (type == PREVIEW_LARGE && (headers.width != 800 || headers.height != 480))
+    {
+      err = 1;
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : Large preview image in sl1 file is not 800x480.\n");
+      goto cleanup;
+    }
+
+  if (type == PREVIEW_SMALL && (headers.width != 400 || headers.height != 400))
+    {
+      err = 1;
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : Small preview image in sl1 file is not 400x400.\n");
+      goto cleanup;
+    }
+
+  if (headers.color_type != SPNG_COLOR_TYPE_TRUECOLOR_ALPHA)
+    {
+      err = 1;
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : Preview image in sl1 file is not trucolor with alpha channel.\n");
+      goto cleanup;
+    }
+
+  *len = type == PREVIEW_LARGE ? 800 * 480 * 4 : 400 * 400 * 4;
+  *data = xalloc (*len);
+
+  err = spng_decode_image (ctx, (void *) *data, *len, SPNG_FMT_PNG, 0);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_preview_file() : can't decode image.\n");
+      goto cleanup;
+    }
+
+  cleanup:
+  if (file) zip_fclose (file);
+  if (archive) zip_close (archive);
+  if (ctx) spng_ctx_free (ctx);
+  if (png) free (png);
+  return err;
+}
+
+/*
+ * Read image for layer `layer_index` in file `sl1` and store its content in `data`.
+ *
+ * `data` is an uncompressed bitmap.
+ *
+ * Returns non-zero in case of error.
+ */
+int
+sl1_read_layer_image_file (uint8_t **data, size_t *len, const sl1_t *sl1, size_t layer_index)
+{
+  int err = 0;
+  zip_t *archive = NULL;
+  zip_file_t *file = NULL;
+  spng_ctx *ctx = NULL;
+  uint8_t *png = NULL;
+
+
+  archive = zip_open (sl1->file_path, ZIP_RDONLY, &err);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't open sl1 archive.\n");
+      goto cleanup;
+    }
+
+  char filename[100] = {0};
+  snprintf (filename, 99, "sl1%05ld.png", layer_index);
+
+  zip_stat_t info;
+  err = zip_stat (archive, filename, 0, &info);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't stat layer file.\n");
+      goto cleanup;
+    }
+
+  file = zip_fopen (archive, filename, 0);
+  if (!file)
+    {
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't open layer file in the sl1 file.");
+      err = 1;
+      goto cleanup;
+    }
+
+  size_t png_len = info.size;
+  png = xalloc (png_len);
+
+  int count = zip_fread (file, png, png_len);
+  if (count < 0 || (size_t) count != png_len)
+    {
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't read png file.");
+      err = 1;
+      goto cleanup;
+    }
+
+  ctx = spng_ctx_new (0);
+  if (!ctx)
+    {
+      err = 1;
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't create spng context.\n");
+      goto cleanup;
+    }
+
+  err = spng_set_png_buffer (ctx, png, png_len);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't set input buffer in spng.\n");
+      goto cleanup;
+    }
+
+  struct spng_ihdr headers;
+  err = spng_get_ihdr (ctx, &headers);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't parse headers.\n");
+      goto cleanup;
+    }
+
+  if (headers.width != (uint32_t) sl1->display_pixels_x || headers.height != (uint32_t) sl1->display_pixels_y)
+    {
+      err = 1;
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : Layer image in sl1 file is not the expected size (%dx%d).\n", sl1->display_pixels_x, sl1->display_pixels_y);
+      goto cleanup;
+    }
+
+  if (headers.color_type != SPNG_COLOR_TYPE_GRAYSCALE)
+    {
+      err = 1;
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : Preview image in sl1 file is not greyscale.\n");
+      goto cleanup;
+    }
+
+  *len = sl1->display_pixels_x * sl1->display_pixels_y;
+  *data = xalloc (*len);
+
+  err = spng_decode_image (ctx, (void *) *data, *len, SPNG_FMT_G8, 0);
+  if (err)
+    {
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : can't decode image.\n");
+      goto cleanup;
+    }
+
+  cleanup:
+  if (file) zip_fclose (file);
+  if (archive) zip_close (archive);
+  if (ctx) spng_ctx_free (ctx);
+  if (png) free (png);
+
+  return err;
+}
+
+/*
  * Decrypt layer data in `raw_data` with key in `encryption_key`.
  *
  * Data in `raw_data` is edited in place.
  */
 void
-decrypt_layer (u_int8_t *raw_data, u_int32_t encryption_key, u_int32_t layer_index, size_t len)
+decrypt_layer (uint8_t *raw_data, uint32_t encryption_key, uint32_t layer_index, size_t len)
 {
   if (!encryption_key)
     return;
 
-  u_int32_t init = encryption_key * 0x2d83cdac + 0xd8a83423;
-  u_int32_t key = (layer_index * 0x1e1530cd + 0xec3d47cd) * init;
+  uint32_t init = encryption_key * 0x2d83cdac + 0xd8a83423;
+  uint32_t key = (layer_index * 0x1e1530cd + 0xec3d47cd) * init;
   int index = 0;
 
   for (size_t i = 0; i < len; i++)
     {
-      u_int8_t k = (u_int8_t) (key >> (8 * index));
+      uint8_t k = (uint8_t) (key >> (8 * index));
       index++;
 
       if ((index & 3) == 0)
@@ -296,7 +811,7 @@ decrypt_layer (u_int8_t *raw_data, u_int32_t encryption_key, u_int32_t layer_ind
           index = 0;
         }
 
-      raw_data[i] = (u_int8_t) (raw_data[i] ^ k);
+      raw_data[i] = (uint8_t) (raw_data[i] ^ k);
     }
 }
 
@@ -310,14 +825,14 @@ decrypt_layer (u_int8_t *raw_data, u_int32_t encryption_key, u_int32_t layer_ind
  * Return non-zero in case of error.
  */
 int
-decode_layer (u_int8_t **data, size_t *data_len, const u_int8_t *raw_data, size_t raw_len, const ctb_t *ctb, size_t *nonzero_pixels_count)
+decode_layer (uint8_t **data, size_t *data_len, const uint8_t *raw_data, size_t raw_len, const ctb_t *ctb, size_t *nonzero_pixels_count)
 {
   *data = xalloc (ctb->headers.resolution_x * ctb->headers.resolution_y);
   *data_len = 0;
 
   for (size_t i = 0; i < raw_len; i++)
     {
-      u_int8_t code = raw_data[i];
+      uint8_t code = raw_data[i];
       int stride = 1;
 
       if ((code & 0x80) == 0x80)
@@ -346,7 +861,7 @@ decode_layer (u_int8_t **data, size_t *data_len, const u_int8_t *raw_data, size_
             }
           else
             {
-              fprintf (stderr, "decode_layer() : bogus layer data.\n");
+              fprintf (stderr, "parser.c: decode_layer() : bogus layer data.\n");
               return 1;
             }
         }

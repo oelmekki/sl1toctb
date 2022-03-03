@@ -33,9 +33,9 @@ display_ctb (ctb_t *ctb)
   printf ("Bed size (x, y, z): %.0fx%.0fx%.0fmm\n", ctb->headers.bed_size_x, ctb->headers.bed_size_y, ctb->headers.bed_size_z);
   printf ("Height of the printed object: %.2fmm.\n", ctb->headers.total_height);
   printf ("Indicative layer height: %.2fmm\n", ctb->headers.layer_height);
-  printf ("Indicative exposure: %.2fs\n", ctb->headers.exposure);
-  printf ("Indicative exposure at bottom: %.2fs\n", ctb->headers.exposure_bottom);
-  printf ("Indicative light off time: %.2fs\n", ctb->headers.light_off_time);
+  printf ("Indicative exposure: %.2fs\n", ctb->headers.layer_exposure);
+  printf ("Indicative exposure at bottom: %.2fs\n", ctb->headers.bottom_exposure);
+  printf ("Indicative light off delay: %.2fs\n", ctb->headers.light_off_delay);
   printf ("Bottom layer count: %d\n", ctb->headers.bottom_layer_count);
   printf ("Resolution (x, y): %dx%d\n", ctb->headers.resolution_x, ctb->headers.resolution_y);
   printf ("Layer count: %d\n", ctb->headers.layer_count);
@@ -47,20 +47,25 @@ display_ctb (ctb_t *ctb)
   printf ("Bottom PWM level: %d\n", ctb->headers.bottom_pwm_level);
   if (ctb->headers.encryption_key)
     printf ("File is encrypted! Key: %d\n", ctb->headers.encryption_key);
+  printf ("Layer table offset: %d\n", ctb->headers.layer_table_offset);
+  printf ("Large preview offset: %d\n", ctb->headers.large_preview_offset);
+  printf ("Small preview offset: %d\n", ctb->headers.small_preview_offset);
+  printf ("Print config offset: %d\n", ctb->headers.print_config_offset);
+  printf ("Slicer config offset: %d\n", ctb->headers.slicer_config_offset);
 
   puts ("\n[Print config]");
-  printf ("Bottom lift distance: %.2fmm.\n", ctb->print_config.bottom_lift_distance);
+  printf ("Bottom lift height: %.2fmm.\n", ctb->print_config.bottom_lift_height);
   printf ("Bottom lift speed: %.2fmm/min.\n", ctb->print_config.bottom_lift_speed);
-  printf ("Lift distance: %.2fmm.\n", ctb->print_config.lift_distance);
+  printf ("Lift height: %.2fmm.\n", ctb->print_config.lift_height);
   printf ("Lift speed: %.2fmm/min.\n", ctb->print_config.lift_speed);
   printf ("Retract speed: %.2fmm/min.\n", ctb->print_config.retract_speed);
   printf ("Resin needed: %.2fml, %.2fg.\n", ctb->print_config.resin_volume, ctb->print_config.resin_mass);
   printf ("Resin cost: %.2f€.\n", ctb->print_config.resin_cost);
 
   puts ("\n[Slicer config]");
-  printf ("Bottom lift distance 2: %.2fmm.\n", ctb->slicer_config.bottom_lift_distance2);
-  printf ("Bottom lift distance speed 2: %.2fmm/sec.\n", ctb->slicer_config.bottom_lift_speed2);
-  printf ("Lift distance 2: %.2fmm.\n", ctb->slicer_config.lift_distance2);
+  printf ("Bottom lift height 2: %.2fmm.\n", ctb->slicer_config.bottom_lift_height2);
+  printf ("Bottom lift speed 2: %.2fmm/sec.\n", ctb->slicer_config.bottom_lift_speed2);
+  printf ("Lift height 2: %.2fmm.\n", ctb->slicer_config.lift_height2);
   printf ("Lift distance speed 2: %.2fmm/sec.\n", ctb->slicer_config.lift_speed2);
   printf ("Retract distance 2: %.2fmm.\n", ctb->slicer_config.retract_distance2);
   printf ("Retract speed 2: %.2fmm/sec.\n", ctb->slicer_config.retract_speed2);
@@ -82,10 +87,13 @@ display_ctb (ctb_t *ctb)
     }
 
   printf ("Mysterious id is %d.\n", ctb->slicer_config.mysterious_id);
+  printf ("Antialias level: %d\n", ctb->slicer_config.antialias_level);
   printf ("Software version: %X\n", ctb->slicer_config.software_version);
   printf ("Rest time after retract: %.2f\n", ctb->slicer_config.rest_time_after_retract);
   printf ("Rest time after lift 2: %.2f\n", ctb->slicer_config.rest_time_after_lift2);
   printf ("Transition layer count : %d\n", ctb->slicer_config.transition_layer_count);
+  printf ("Machine type offset: %d\n", ctb->slicer_config.machine_type_offset);
+  printf ("Print config v4 offset: %d\n", ctb->slicer_config.print_config_v4_offset);
 
   if (ctb->headers.version == 4)
     {
@@ -96,14 +104,17 @@ display_ctb (ctb_t *ctb)
       printf ("Rest time after lift : %.2f\n", ctb->print_config_v4.rest_time_after_lift);
       printf ("Rest time before lift : %.2f\n", ctb->print_config_v4.rest_time_before_lift);
       printf ("Bottom retract height 2 : %.2f\n", ctb->print_config_v4.bottom_retract_height2);
-      printf ("Disclaimer : %s\n", ctb->disclaimer);
+      printf ("Disclaimer offset : %d\n", ctb->print_config_v4.disclaimer_offset);
+      printf ("Disclaimer : %s\n", ctb->v4_disclaimer);
     }
 
   puts ("\n[Large preview]");
   printf ("Resolution: %dx%d\n", ctb->large_preview.resolution_x, ctb->large_preview.resolution_y);
+  printf ("Image offset : %d\n", ctb->large_preview.image_offset);
 
   puts ("\n[Small preview]");
   printf ("Resolution: %dx%d\n", ctb->small_preview.resolution_x, ctb->small_preview.resolution_y);
+  printf ("Image offset : %d\n", ctb->small_preview.image_offset);
 }
 
 /*
@@ -119,8 +130,8 @@ static int
 export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, int layer_index)
 {
   int err = 0;
-  u_int8_t *raw_data = NULL;
-  u_int8_t *data = NULL;
+  uint8_t *raw_data = NULL;
+  uint8_t *data = NULL;
   spng_ctx *ctx = NULL;
   FILE *file = NULL;
 
@@ -129,7 +140,7 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
   err = fseek (ctb_file, hdr->base.data_offset, SEEK_SET);
   if (err)
     {
-      fprintf (stderr, "export_layer() : can't seek ctb file.\n");
+      fprintf (stderr, "inspect.c: export_layer() : can't seek ctb file.\n");
       goto cleanup;
     }
 
@@ -138,7 +149,7 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
   if (count != 1)
     {
       err = 1;
-      fprintf (stderr, "export_layer() : can't read layer raw data.\n");
+      fprintf (stderr, "inspect.c: export_layer() : can't read layer raw data.\n");
       goto cleanup;
     }
 
@@ -150,26 +161,45 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
   err = decode_layer (&data, &data_len, raw_data, hdr->base.data_len, ctb, &nonzero_pixels_count);
   if (err)
     {
-      fprintf (stderr, "export_layer() : can't decode layer data.\n");
+      fprintf (stderr, "inspect.c: export_layer() : can't decode layer data.\n");
       goto cleanup;
     }
 
   fprintf (metadata_file, "[Layer %d]\n", layer_index);
   fprintf (metadata_file, "Non-zero pixels: %ld\n", nonzero_pixels_count);
+
+  fprintf (metadata_file, "BASE\n");
   fprintf (metadata_file, "Z: %.3f\n", hdr->base.z);
-  fprintf (metadata_file, "Exposure: %.3f secs\n", hdr->base.exposure);
-  fprintf (metadata_file, "Light Off Time: %.3f secs\n", hdr->base.light_off_time);
-  fprintf (metadata_file, "Lift distance: %.3f mm\n", hdr->extended.lift_distance);
+  fprintf (metadata_file, "Exposure: %.3f secs\n", hdr->base.exposure_time);
+  fprintf (metadata_file, "Light Off Time: %.3f secs\n", hdr->base.light_off_delay);
+  fprintf (metadata_file, "Data offset: %u\n", hdr->base.data_offset);
+  fprintf (metadata_file, "Data len: %u\n", hdr->base.data_len);
+  fprintf (metadata_file, "Unknown1: %u\n", hdr->base.unknown1);
+  fprintf (metadata_file, "Table size: %u\n", hdr->base.table_size);
+  fprintf (metadata_file, "Unknown2: %u\n", hdr->base.unknown2);
+  fprintf (metadata_file, "Unknown3: %u\n", hdr->base.unknown3);
+
+  fprintf (metadata_file, "EXTENDED\n");
+  fprintf (metadata_file, "Z: %.3f\n", hdr->extended.z);
+  fprintf (metadata_file, "Exposure: %.3f secs\n", hdr->extended.exposure_time);
+  fprintf (metadata_file, "Light Off Time: %.3f secs\n", hdr->extended.light_off_delay);
+  fprintf (metadata_file, "Data offset: %u\n", hdr->extended.data_offset);
+  fprintf (metadata_file, "Data len: %u\n", hdr->extended.data_len);
+  fprintf (metadata_file, "Unknown1: %u\n", hdr->extended.unknown1);
+  fprintf (metadata_file, "Table size: %u\n", hdr->extended.table_size);
+  fprintf (metadata_file, "Unknown2: %u\n", hdr->extended.unknown2);
+  fprintf (metadata_file, "Unknown3: %u\n", hdr->extended.unknown3);
+  fprintf (metadata_file, "Lift height: %.3f mm\n", hdr->extended.lift_height);
   fprintf (metadata_file, "Lift speed: %.3f mm/s\n", hdr->extended.lift_speed);
-  fprintf (metadata_file, "Lift distance2: %.3f mm\n", hdr->extended.lift_distance2);
+  fprintf (metadata_file, "Lift height2: %.3f mm\n", hdr->extended.lift_height2);
   fprintf (metadata_file, "Lift speed2: %.3f mm/s\n", hdr->extended.lift_speed2);
   fprintf (metadata_file, "Retract speed: %.3f mm/s\n", hdr->extended.retract_speed);
-  fprintf (metadata_file, "Retract distance2: %.3f mm\n", hdr->extended.retract_distance2);
+  fprintf (metadata_file, "Retract distance2: %.3f mm\n", hdr->extended.retract_height2);
   fprintf (metadata_file, "Retract speed2: %.3f mm/s\n", hdr->extended.retract_speed2);
   fprintf (metadata_file, "Rest time before lift: %.3f secs\n", hdr->extended.rest_time_before_lift);
   fprintf (metadata_file, "Rest time after lift: %.3f secs\n", hdr->extended.rest_time_after_lift);
   fprintf (metadata_file, "Rest time after retract: %.3f secs\n", hdr->extended.rest_time_after_retract);
-  fprintf (metadata_file, "Light PWM: %.3f\n", hdr->extended.light_pwm);
+  fprintf (metadata_file, "Light PWM: %.2f secs\n", hdr->extended.light_pwm);
   fputs ("\n", metadata_file);
 
   char filename[250] = "";
@@ -178,7 +208,7 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
   if (!file)
     {
       err = 1;
-      fprintf (stderr, "can't open file for writing: %s\n", filename);
+      fprintf (stderr, "inspect.c: can't open file for writing: %s\n", filename);
       goto cleanup;
     }
 
@@ -187,7 +217,7 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
   err = spng_set_png_file (ctx, file);
   if (err)
     {
-      fprintf (stderr, "export_layer() : Error while passing file to spng.\n");
+      fprintf (stderr, "inspect.c: export_layer() : Error while passing file to spng.\n");
       err = 1;
       goto cleanup;
     }
@@ -205,14 +235,14 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
   err = spng_set_ihdr (ctx, &headers);
   if (err)
     {
-      fprintf (stderr, "export_layer() : Can't set headers.\n");
+      fprintf (stderr, "inspect.c: export_layer() : Can't set headers.\n");
       goto cleanup;
     }
 
   err = spng_encode_image (ctx, data, data_len, SPNG_FMT_PNG, SPNG_ENCODE_FINALIZE);
   if (err)
     {
-      fprintf (stderr, "export_layer() : Can't encode image: %s.\n", spng_strerror (err));
+      fprintf (stderr, "inspect.c: export_layer() : Can't encode image: %s.\n", spng_strerror (err));
       goto cleanup;
     }
 
@@ -229,7 +259,7 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
 /*
  * Extract large preview image and display it.
  *
- * `image_type` is CTB_PREVIEW_LARGE or CTB_PREVIEW_SMALL.
+ * `image_type` is PREVIEW_LARGE or PREVIEW_SMALL.
  *
  * Returns non-zero in case of error.
  */
@@ -237,7 +267,7 @@ int
 show_preview_image (const char *filename, int image_type)
 {
   int err = 0;
-  u_int8_t *data = NULL;
+  uint8_t *data = NULL;
   FILE *file = NULL;
   size_t len = 0;
   spng_ctx *ctx = NULL;
@@ -249,36 +279,36 @@ show_preview_image (const char *filename, int image_type)
   err = parse_ctb_file (ctb, filename);
   if (err)
     {
-      fprintf (stderr, "show_preview_image() : Unrecognized file at %s\n", filename);
+      fprintf (stderr, "inspect.c: show_preview_image() : Unrecognized file at %s\n", filename);
       goto cleanup;
     }
 
-  err = read_preview_file (&data, &len, ctb, image_type);
+  err = ctb_read_preview_file (&data, &len, ctb, image_type);
   if (err)
     {
-      fprintf (stderr, "show_preview_image() : Can't read image data\n");
+      fprintf (stderr, "inspect.c: show_preview_image() : Can't read image data\n");
       goto cleanup;
     }
 
   file = fopen (tmp_file, "wb");
   if (!file)
     {
-      fprintf (stderr, "show_preview_image() : Can't open destination file.\n");
+      fprintf (stderr, "inspect.c: show_preview_image() : Can't open destination file.\n");
       err = 1;
       goto cleanup;
     }
 
   file_created = true;
-  ctb_preview_t *preview = image_type == CTB_PREVIEW_LARGE ? &ctb->large_preview : &ctb->small_preview;
+  ctb_preview_t *preview = image_type == PREVIEW_LARGE ? &ctb->large_preview : &ctb->small_preview;
 
-  u_int32_t width = preview->resolution_x;
-  u_int32_t height = preview->resolution_y;
+  uint32_t width = preview->resolution_x;
+  uint32_t height = preview->resolution_y;
 
   ctx = spng_ctx_new (SPNG_CTX_ENCODER);
   err = spng_set_png_file (ctx, file);
   if (err)
     {
-      fprintf (stderr, "show_preview_image() : Error while passing file to spng.\n");
+      fprintf (stderr, "inspect.c: show_preview_image() : Error while passing file to spng.\n");
       err = 1;
       goto cleanup;
     }
@@ -296,7 +326,7 @@ show_preview_image (const char *filename, int image_type)
   err = spng_set_ihdr (ctx, &headers);
   if (err)
     {
-      fprintf (stderr, "show_preview_image() : Can't set headers.\n");
+      fprintf (stderr, "inspect.c: show_preview_image() : Can't set headers.\n");
       goto cleanup;
     }
 
@@ -304,7 +334,7 @@ show_preview_image (const char *filename, int image_type)
   err = spng_encode_image (ctx, data, len, SPNG_FMT_PNG, SPNG_ENCODE_FINALIZE);
   if (err)
     {
-      fprintf (stderr, "show_preview_image() : Can't encode image: %s.\n", spng_strerror (err));
+      fprintf (stderr, "inspect.c: show_preview_image() : Can't encode image: %s.\n", spng_strerror (err));
       goto cleanup;
     }
 
@@ -337,7 +367,7 @@ inspect (const char *in)
   ctb_t *ctb = NULL;
 
   sl1 = new_sl1 ();
-  int err = parse_sl1_file (sl1, in);
+  int err = parse_sl1_archive (sl1, in);
   if (!err)
     {
       display_sl1 (sl1);

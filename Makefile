@@ -1,5 +1,5 @@
 PROG=sl1toctb
-DEPS=zlib
+DEPS=zlib libzip
 FILES=main.c spng.c utils.c convert.c parser.c inspect.c
 CFLAGS=`pkg-config --cflags ${DEPS}`
 PREFIX=/usr/local
