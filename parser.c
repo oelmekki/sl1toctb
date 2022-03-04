@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <zip.h>
+#include <libgen.h>
 #include "utils.h"
 #include "parser.h"
 #include "spng.h"
@@ -182,6 +183,7 @@ free_sl1 (sl1_t *s)
   if (!s) return;
 
   if (s->file_path) free (s->file_path);
+  if (s->base_name) free (s->base_name);
   if (s->bed_shape) free (s->bed_shape);
   if (s->default_sla_material_profile) free (s->default_sla_material_profile);
   if (s->default_sla_print_profile) free (s->default_sla_print_profile);
@@ -284,6 +286,10 @@ parse_sl1_archive (sl1_t *sl1, const char *in)
   int err = 0;
 
   sl1->file_path = strdup (in);
+  char *base_name = basename (sl1->file_path);
+  sl1->base_name = xalloc (strlen (base_name));
+  for (size_t i = 0; i < strlen (base_name) - 4; i++) // 4 == .sl1
+    sl1->base_name[i] = base_name[i];
 
   if (!is_sl1_file (in))
     {
@@ -700,7 +706,7 @@ sl1_read_layer_image_file (uint8_t **data, size_t *len, const sl1_t *sl1, size_t
     }
 
   char filename[100] = {0};
-  snprintf (filename, 99, "sl1%05ld.png", layer_index);
+  snprintf (filename, 99, "%s%05ld.png", sl1->base_name, layer_index);
 
   zip_stat_t info;
   err = zip_stat (archive, filename, 0, &info);

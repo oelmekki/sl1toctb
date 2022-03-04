@@ -15,6 +15,7 @@ enum {
 
 typedef struct {
   char *file_path;
+  char *base_name;
   char *bed_shape;
   double bottle_cost;
   double bottle_volume;
