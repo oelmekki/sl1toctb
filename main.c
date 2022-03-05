@@ -8,7 +8,6 @@
 #include "parser.h"
 
 typedef struct {
-  bool v3;
   bool inspect_mode;
   bool show_large_preview_mode;
   bool show_small_preview_mode;
@@ -21,17 +20,14 @@ typedef struct {
 static void
 usage (const char *progname)
 {
-  printf ("%s [-3h] [--help] <input sl1 file> [<output ctb file>] \n\
+  printf ("%s [-h] [--help] <input sl1 file> [<output ctb file>] \n\
 %s <-i|-l|-s> <file> \n\
 %s -e <dir> <file> \n\
   \n\
-  Convert a sl1 file into a ctb file. \n\
+  Convert a sl1 file into a ctb v4 file. \n\
   Output file will have the same name as input file with the \n\
   .sl1 extension replaced with .ctb, unless `output ctb file` is \n\
   specified. \n\
-  \n\
-  By default, outputs ctb version 4 files. Use `-3` if you want\n\
-  ctb version 3.\n\
   \n\
   When `-i` option is provided, inspect the given file instead.\n\
   This works with both ctb files and sl1 files.\n\
@@ -46,8 +42,6 @@ usage (const char *progname)
   \n\
   Options: \n\
   \n\
-  -3        : output ctb version 3 \n\
-  -4        : output ctb version 4 \n\
   -i        : inspect file. (ctb or sl1) \n\
   -l        : show large preview. (ctb only) (require sxiv) \n\
   -s        : show small preview. (ctb only) (require sxiv) \n\
@@ -61,18 +55,6 @@ parse_options (options_t *options, const size_t argc, char ** const argv)
 {
   for (size_t i = 1; i < argc; i++)
     {
-      if (strncmp (argv[i], "-3", 3) == 0)
-        {
-          options->v3 = true;
-          continue;
-        }
-
-      if (strncmp (argv[i], "-4", 3) == 0)
-        {
-          options->v3 = false;
-          continue;
-        }
-
       if (strncmp (argv[i], "-i", 3) == 0)
         {
           options->inspect_mode = true;
@@ -187,7 +169,7 @@ main (int argc, char **argv)
       exit (1);
     }
 
-  err = convert (options->in, options->out, options->v3);
+  err = convert (options->in, options->out);
 
   cleanup:
   if (options->out) free (options->out);

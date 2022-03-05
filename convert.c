@@ -8,16 +8,16 @@
 
 #define RLE16_ENCODING_LIMIT 0xFFF
 
-static int  write_file            (const sl1_t *sl1, const char *out, bool v3);
-static int  write_headers         (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_large_preview   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_small_preview   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_print_config    (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_slicer_config   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_machine_name    (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_v4_disclaimer   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_v4_config       (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
-static int  write_layers          (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3);
+static int  write_file            (const sl1_t *sl1, const char *out);
+static int  write_headers         (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_large_preview   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_small_preview   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_print_config    (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_slicer_config   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_machine_name    (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_v4_disclaimer   (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_v4_config       (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
+static int  write_layers          (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1);
 static int  encode_rle15          (uint8_t **out_buffer, size_t *out_buffer_size, uint8_t *in_buffer, size_t in_buffer_size);
 static int  encode_rle1           (uint8_t **encoded_buffer, size_t *encoded_buffer_size, const uint8_t *in_buffer,
                                    size_t in_buffer_size);
@@ -30,7 +30,7 @@ static int  encrypt_layer         (uint8_t **out_buffer, size_t *out_buffer_size
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_file (const sl1_t *sl1, const char *out, bool v3)
+write_file (const sl1_t *sl1, const char *out)
 {
   int err = 0;
   FILE *file = NULL;
@@ -55,7 +55,7 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
     }
   pos += sizeof (ctb->headers);
 
-  err = write_large_preview (file, &pos, ctb, sl1, v3);
+  err = write_large_preview (file, &pos, ctb, sl1);
   if (err)
     {
       fprintf (stderr, "convert.c: write_file() : can't write large preview\n");
@@ -63,7 +63,7 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
       goto cleanup;
     }
 
-  err = write_small_preview (file, &pos, ctb, sl1, v3);
+  err = write_small_preview (file, &pos, ctb, sl1);
   if (err)
     {
       fprintf (stderr, "convert.c: write_file() : can't write small preview\n");
@@ -71,7 +71,7 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
       goto cleanup;
     }
 
-  err = write_print_config (file, &pos, ctb, sl1, v3);
+  err = write_print_config (file, &pos, ctb, sl1);
   if (err)
     {
       fprintf (stderr, "convert.c: write_file() : can't write print config\n");
@@ -91,7 +91,7 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
     }
   pos += sizeof (ctb->slicer_config);
 
-  err = write_machine_name (file, &pos, ctb, sl1, v3);
+  err = write_machine_name (file, &pos, ctb, sl1);
   if (err)
     {
       fprintf (stderr, "convert.c: write_file() : can't write machine name\n");
@@ -99,26 +99,23 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
       goto cleanup;
     }
 
-  if (!v3)
+  err = write_v4_disclaimer (file, &pos, ctb, sl1);
+  if (err)
     {
-      err = write_v4_disclaimer (file, &pos, ctb, sl1, v3);
-      if (err)
-        {
-          fprintf (stderr, "convert.c: write_file() : can't write v4 disclaimer\n");
-          err = 1;
-          goto cleanup;
-        }
-
-      err = write_v4_config (file, &pos, ctb, sl1, v3);
-      if (err)
-        {
-          fprintf (stderr, "convert.c: write_file() : can't write v4 config\n");
-          err = 1;
-          goto cleanup;
-        }
+      fprintf (stderr, "convert.c: write_file() : can't write v4 disclaimer\n");
+      err = 1;
+      goto cleanup;
     }
 
-  err = write_layers (file, &pos, ctb, sl1, v3);
+  err = write_v4_config (file, &pos, ctb, sl1);
+  if (err)
+    {
+      fprintf (stderr, "convert.c: write_file() : can't write v4 config\n");
+      err = 1;
+      goto cleanup;
+    }
+
+  err = write_layers (file, &pos, ctb, sl1);
   if (err)
     {
       fprintf (stderr, "convert.c: write_file() : can't write layers\n");
@@ -127,7 +124,7 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
     }
 
   fseek (file, ctb->headers.slicer_config_offset, SEEK_SET);
-  err = write_slicer_config (file, &pos, ctb, sl1, v3);
+  err = write_slicer_config (file, &pos, ctb, sl1);
   if (err)
     {
       fprintf (stderr, "convert.c: write_file() : can't write slicer config\n");
@@ -136,7 +133,7 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
     }
 
   fseek (file, 0, SEEK_SET);
-  err = write_headers (file, &pos, ctb, sl1, v3);
+  err = write_headers (file, &pos, ctb, sl1);
   if (err)
     {
       fprintf (stderr, "convert.c: write_file() : can't write headers\n");
@@ -159,12 +156,12 @@ write_file (const sl1_t *sl1, const char *out, bool v3)
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_headers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_headers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
 
   ctb->headers.magic = 0x12fd0086;
-  ctb->headers.version = v3 ? 3 : 4;
+  ctb->headers.version = 4;
   ctb->headers.bed_size_x = sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE ? sl1->display_width : sl1->display_height;
   ctb->headers.bed_size_y = sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE ? sl1->display_height : sl1->display_width;
   ctb->headers.bed_size_z = sl1->max_print_height;
@@ -295,7 +292,7 @@ encode_rle15 (uint8_t **out_buffer, size_t *out_buffer_size, uint8_t *in_buffer,
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_large_preview (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_large_preview (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
   uint8_t *in_buffer = NULL;
@@ -410,7 +407,7 @@ write_large_preview (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bo
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_small_preview (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_small_preview (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
   uint8_t *in_buffer = NULL;
@@ -529,7 +526,7 @@ write_small_preview (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bo
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_print_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_print_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
 
@@ -570,7 +567,7 @@ write_print_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, boo
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_slicer_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_slicer_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
 
@@ -583,7 +580,7 @@ write_slicer_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bo
   ctb->slicer_config.retract_distance2 = 0;
   ctb->slicer_config.retract_speed2 = 0;
   ctb->slicer_config.reset_time_after_lift = 0;
-  ctb->slicer_config.per_layer_settings = v3 ? 0x2000000F : 0x4000000F;
+  ctb->slicer_config.per_layer_settings = 0x4000000F;
   ctb->slicer_config.mysterious_id = 27345357;
   ctb->slicer_config.antialias_level = 4;
   ctb->slicer_config.software_version = 17367040;
@@ -613,7 +610,7 @@ write_slicer_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bo
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_machine_name (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_machine_name (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
   size_t len = strlen (sl1->printer_settings_id);
@@ -642,7 +639,7 @@ write_machine_name (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, boo
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_v4_disclaimer (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_v4_disclaimer (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
   const char *disclaimer = "Layout and record format for the ctb and cbddlp file types are the copyrighted programs or codes of CBD Technology (China) Inc..The Customer or User shall not in any manner reproduce, distribute, modify, decompile, disassemble, decrypt, extract, reverse engineer, lease, assign, or sublicense the said programs or codes.";
@@ -672,7 +669,7 @@ write_v4_disclaimer (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bo
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_v4_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_v4_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
   ctb->slicer_config.print_config_v4_offset = *index;
@@ -823,7 +820,7 @@ encrypt_layer (uint8_t **out_buffer, size_t *out_buffer_size, const uint8_t *enc
  * Returns 0 if successful, nonzero otherwise.
  */
 static int
-write_layers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
+write_layers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
 {
   int err = 0;
   double z = 0;
@@ -992,13 +989,12 @@ write_layers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
 /*
  * Convert the file at `in` into a ctb file at `out`.
  *
- * It will be a ctb version 4 file, unless the `v3` flag
- * is set.
+ * It will be a ctb version 4 file.
  *
  * Returns non-zero on error.
  */
 int
-convert (const char *in, const char *out, const bool v3)
+convert (const char *in, const char *out)
 {
   int ret = 0;
   sl1_t *sl1 = NULL;
@@ -1018,7 +1014,7 @@ convert (const char *in, const char *out, const bool v3)
       goto cleanup;
     }
 
-  if (write_file (sl1, out, v3))
+  if (write_file (sl1, out))
     {
       fprintf (stderr, "convert.c: Can't write output file.\n");
       ret = 1;
