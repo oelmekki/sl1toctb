@@ -165,8 +165,8 @@ write_headers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
 
   ctb->headers.magic = 0x12fd0086;
   ctb->headers.version = v3 ? 3 : 4;
-  ctb->headers.bed_size_x = sl1->display_width;
-  ctb->headers.bed_size_y = sl1->display_height;
+  ctb->headers.bed_size_x = sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE ? sl1->display_width : sl1->display_height;
+  ctb->headers.bed_size_y = sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE ? sl1->display_height : sl1->display_width;
   ctb->headers.bed_size_z = sl1->max_print_height;
   ctb->headers.total_height = (double) sl1->num_fast_layers * sl1->layer_height + (double) sl1->num_slow_layers * sl1->layer_height;
   ctb->headers.layer_height = sl1->layer_height;
@@ -174,8 +174,8 @@ write_headers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bool v3)
   ctb->headers.bottom_exposure = sl1->initial_exposure_time;
   ctb->headers.light_off_delay = 0;
   ctb->headers.bottom_layer_count = sl1->faded_layers;
-  ctb->headers.resolution_x = sl1->display_pixels_x;
-  ctb->headers.resolution_y = sl1->display_pixels_y;
+  ctb->headers.resolution_x = sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE ? sl1->display_pixels_x : sl1->display_pixels_y;
+  ctb->headers.resolution_y = sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE ? sl1->display_pixels_y : sl1->display_pixels_x;
   ctb->headers.layer_count = sl1->num_fast_layers + sl1->num_slow_layers;
   ctb->headers.print_time = sl1->print_time;
   ctb->headers.projection = 1;
@@ -583,7 +583,7 @@ write_slicer_config (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1, bo
   ctb->slicer_config.retract_distance2 = 0;
   ctb->slicer_config.retract_speed2 = 0;
   ctb->slicer_config.reset_time_after_lift = 0;
-  ctb->slicer_config.per_layer_settings = 0x4000000F;
+  ctb->slicer_config.per_layer_settings = v3 ? 0x2000000F : 0x4000000F;
   ctb->slicer_config.mysterious_id = 27345357;
   ctb->slicer_config.antialias_level = 4;
   ctb->slicer_config.software_version = 17367040;

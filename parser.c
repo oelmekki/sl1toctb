@@ -64,7 +64,7 @@ sl1_set_parsed_attribute (sl1_t *sl1, const char *attribute, const char *value)
 
 
   if (strncmp (attribute, "display_orientation", 100) == 0)
-    sl1->display_orientation = atoi (value);
+    sl1->display_orientation = strncmp ("portrait", value, 10) == 0 ? SL1_ORIENTATION_PORTRAIT : SL1_ORIENTATION_LANDSCAPE;
 
   if (strncmp (attribute, "display_pixels_x", 100) == 0)
     sl1->display_pixels_x = atoi (value);
@@ -759,10 +759,13 @@ sl1_read_layer_image_file (uint8_t **data, size_t *len, const sl1_t *sl1, size_t
       goto cleanup;
     }
 
-  if (headers.width != (uint32_t) sl1->display_pixels_x || headers.height != (uint32_t) sl1->display_pixels_y)
+  bool valid_landscape = sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE && (headers.width == (uint32_t) sl1->display_pixels_x || headers.height == (uint32_t) sl1->display_pixels_y);
+  bool valid_portrait = sl1->display_orientation == SL1_ORIENTATION_PORTRAIT && (headers.width == (uint32_t) sl1->display_pixels_y || headers.height == (uint32_t) sl1->display_pixels_x);
+
+  if (false && !valid_landscape && !valid_portrait)
     {
       err = 1;
-      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : Layer image in sl1 file is not the expected size (%dx%d).\n", sl1->display_pixels_x, sl1->display_pixels_y);
+      fprintf (stderr, "parser.c: sl1_read_layer_image_file() : Layer image in sl1 file is not the expected size (image is %dx%d, expected %dx%d).\n", headers.width, headers.height, sl1->display_pixels_x, sl1->display_pixels_y);
       goto cleanup;
     }
 
