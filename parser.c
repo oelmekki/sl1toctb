@@ -209,6 +209,7 @@ free_ctb (ctb_t *c)
   if (c->file_path) free (c->file_path);
   if (c->machine_name) free (c->machine_name);
   if (c->v4_disclaimer) free (c->v4_disclaimer);
+  if (c->layer_headers) free (c->layer_headers);
 
   free (c);
 }
