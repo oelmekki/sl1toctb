@@ -296,16 +296,16 @@ export_layer (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, const char *dir, 
  * Returns non-zero in case of error.
  */
 int
-show_preview_image (const char *filename, int image_type)
+show_preview_image (const char *filename, int image_type, const char *dir)
 {
   int err = 0;
   uint8_t *data = NULL;
   FILE *file = NULL;
   size_t len = 0;
   spng_ctx *ctx = NULL;
-  char tmp_file[] = "/tmp/sl1toctb-XXXXXX";
-  mkstemp (tmp_file);
-  bool file_created = false;
+  char out_name[1000] = {0};
+
+  snprintf (out_name, 999, "%s/preview.png", dir);
 
   ctb_t *ctb = new_ctb ();
   err = parse_ctb_file (ctb, filename);
@@ -322,7 +322,7 @@ show_preview_image (const char *filename, int image_type)
       goto cleanup;
     }
 
-  file = fopen (tmp_file, "wb");
+  file = fopen (out_name, "wb");
   if (!file)
     {
       fprintf (stderr, "inspect.c: show_preview_image() : Can't open destination file.\n");
@@ -330,7 +330,6 @@ show_preview_image (const char *filename, int image_type)
       goto cleanup;
     }
 
-  file_created = true;
   ctb_preview_t *preview = image_type == PREVIEW_LARGE ? &ctb->large_preview : &ctb->small_preview;
 
   uint32_t width = preview->resolution_x;
@@ -373,16 +372,11 @@ show_preview_image (const char *filename, int image_type)
   fclose (file);
   file = NULL;
 
-  char cmd[250] = "";
-  snprintf (cmd, 249, "sxiv %s", tmp_file);
-  system (cmd);
-
   cleanup:
   if (ctb) free_ctb (ctb);
   if (data) free (data);
   if (file) fclose (file);
   if (ctx) spng_ctx_free (ctx);
-  if (file_created) unlink (tmp_file);
 
   return err;
 }

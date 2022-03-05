@@ -21,8 +21,8 @@ static void
 usage (const char *progname)
 {
   printf ("%s [-h] [--help] <input sl1 file> [<output ctb file>] \n\
-%s <-i|-l|-s> <file> \n\
-%s -e <dir> <file> \n\
+%s <-i> <ctb file> \n\
+%s <-l|-s|-e> <dir> <ctb file> \n\
   \n\
   Convert a sl1 file into a ctb v4 file. \n\
   Output file will have the same name as input file with the \n\
@@ -32,10 +32,10 @@ usage (const char *progname)
   When `-i` option is provided, inspect the given file instead.\n\
   This works with both ctb files and sl1 files.\n\
   \n\
-  When `-l` or `-s` option is provided, show preview image instead.\n\
-  `-l` shows the large preview, and `-s` shows the small preview.\n\
+  When `-l` or `-s` option is provided, export preview image instead.\n\
+  `-l` exports the large preview, and `-s` exports the small preview.\n\
+  The file will be saved in `dir` and will be named `preview.png`.\n\
   Only works for ctb files.\n\
-  Those options require the sxiv program to be installed.\n\
   \n\
   When -e option is provided, export layers and their headers in `dir`.\n\
   Only works for ctb files.\n\
@@ -43,8 +43,8 @@ usage (const char *progname)
   Options: \n\
   \n\
   -i        : inspect file. (ctb or sl1) \n\
-  -l        : show large preview. (ctb only) (require sxiv) \n\
-  -s        : show small preview. (ctb only) (require sxiv) \n\
+  -l        : export large preview. (ctb only) \n\
+  -s        : export small preview. (ctb only) \n\
   -e        : export layer data to <dir> (ctb only) \n\
   -h|--help : show this help \n\
   \n", progname, progname, progname);
@@ -63,13 +63,27 @@ parse_options (options_t *options, const size_t argc, char ** const argv)
 
       if (strncmp (argv[i], "-l", 3) == 0)
         {
+          if (argc < i+2)
+            {
+              usage (argv[0]);
+              exit (1);
+            }
+
           options->show_large_preview_mode = true;
+          options->export_dir = argv[++i];
           continue;
         }
 
       if (strncmp (argv[i], "-s", 3) == 0)
         {
+          if (argc < i+2)
+            {
+              usage (argv[0]);
+              exit (1);
+            }
+
           options->show_small_preview_mode = true;
+          options->export_dir = argv[++i];
           continue;
         }
 
@@ -146,13 +160,13 @@ main (int argc, char **argv)
 
   if (options->show_large_preview_mode)
     {
-      err = show_preview_image (options->in, PREVIEW_LARGE);
+      err = show_preview_image (options->in, PREVIEW_LARGE, options->export_dir);
       goto cleanup;
     }
 
   if (options->show_small_preview_mode)
     {
-      err = show_preview_image (options->in, PREVIEW_SMALL);
+      err = show_preview_image (options->in, PREVIEW_SMALL, options->export_dir);
       goto cleanup;
     }
 
