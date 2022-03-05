@@ -1,7 +1,7 @@
 # sl1toctb - convert prusaslicer files to ctb v4 files
 
 sl1toctb allows to convert files created by the prusaslicer 3d slicer into
-chitu's ctb file, version, to use with any 3d printer supporting those
+chitu's ctb file, version 4, to use with any 3d printer supporting those
 files.
 
 Note that it will output ctb file version 4, not any earlier.
