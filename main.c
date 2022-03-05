@@ -21,31 +21,37 @@ typedef struct {
 static void
 usage (const char *progname)
 {
-  printf ("%s [-3h] [--help] <inputfile> [<outputfile>] \n\
+  printf ("%s [-3h] [--help] <input sl1 file> [<output ctb file>] \n\
 %s <-i|-l|-s> <file> \n\
 %s -e <dir> <file> \n\
   \n\
   Convert a sl1 file into a ctb file. \n\
   Output file will have the same name as input file with the \n\
-  .sl1 extension replaced with .ctb, unless `outputfile` is \n\
+  .sl1 extension replaced with .ctb, unless `output ctb file` is \n\
   specified. \n\
   \n\
-  By default, outputs ctb version 4 files.\n\
+  By default, outputs ctb version 4 files. Use `-3` if you want\n\
+  ctb version 3.\n\
   \n\
   When `-i` option is provided, inspect the given file instead.\n\
+  This works with both ctb files and sl1 files.\n\
   \n\
   When `-l` or `-s` option is provided, show preview image instead.\n\
   `-l` shows the large preview, and `-s` shows the small preview.\n\
+  Only works for ctb files.\n\
   Those options require the sxiv program to be installed.\n\
+  \n\
+  When -e option is provided, export layers and their headers in `dir`.\n\
+  Only works for ctb files.\n\
   \n\
   Options: \n\
   \n\
   -3        : output ctb version 3 \n\
   -4        : output ctb version 4 \n\
-  -i        : inspect file. \n\
-  -l        : show large preview. (require sxiv) \n\
-  -s        : show small preview. (require sxiv) \n\
-  -e        : export layer data to <dir> \n\
+  -i        : inspect file. (ctb or sl1) \n\
+  -l        : show large preview. (ctb only) (require sxiv) \n\
+  -s        : show small preview. (ctb only) (require sxiv) \n\
+  -e        : export layer data to <dir> (ctb only) \n\
   -h|--help : show this help \n\
   \n", progname, progname, progname);
 }

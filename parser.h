@@ -28,7 +28,7 @@ typedef struct {
   int display_orientation;
   int display_pixels_x;
   int display_pixels_y;
-  int display_width;
+  double display_width;
   double exposure_time;
   int faded_layers;
   int fast_tilt_time;

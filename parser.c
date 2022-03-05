@@ -73,7 +73,7 @@ sl1_set_parsed_attribute (sl1_t *sl1, const char *attribute, const char *value)
     sl1->display_pixels_y = atoi (value);
 
   if (strncmp (attribute, "display_width", 100) == 0)
-    sl1->display_width = atoi (value);
+    sl1->display_width = atof (value);
 
   if (strncmp (attribute, "faded_layers", 100) == 0)
     sl1->faded_layers = atoi (value);

@@ -19,6 +19,38 @@ static int    export_layer    (ctb_t *ctb, FILE *ctb_file, FILE *metadata_file, 
 static void
 display_sl1 (sl1_t *sl1)
 {
+  printf ("Bed shape: %s\n", sl1->bed_shape);
+  printf ("Bottle cost: %.2f\n", sl1->bottle_cost);
+  printf ("Bottle volume: %.2f\n", sl1->bottle_volume);
+  printf ("Bottle weight: %.2f\n", sl1->bottle_weight);
+  printf ("Default SLA material profile: %s\n", sl1->default_sla_material_profile);
+  printf ("Default SLA print profile: %s\n", sl1->default_sla_print_profile);
+  printf ("Display width: %.2f mm\n", sl1->display_width);
+  printf ("Display height: %.2f mm\n", sl1->display_height);
+  printf ("Display pixels x: %d\n", sl1->display_pixels_x);
+  printf ("Display pixels y: %d\n", sl1->display_pixels_y);
+  if (sl1->display_mirror_x)
+    puts ("Display is mirrored on x axis.");
+  if (sl1->display_mirror_y)
+    puts ("Display is mirrored on y axis.");
+  if (sl1->display_orientation == SL1_ORIENTATION_LANDSCAPE)
+    puts ("Orientation: landscape.");
+  else
+    puts ("Orientation: portrait.");
+  printf ("Exposure time: %.2f secs\n", sl1->exposure_time);
+  printf ("Faded layer (will be used in ctb file as bottom layer count): %d\n", sl1->faded_layers);
+  printf ("Fast tilt time: %d secs\n", sl1->fast_tilt_time);
+  printf ("Initial exposure time: %d secs\n", sl1->initial_exposure_time);
+  printf ("Initial layer height: %.2f mm\n", sl1->initial_layer_height);
+  printf ("Layer height: %.2f mm\n", sl1->layer_height);
+  printf ("Max print height: %.2f mm\n", sl1->max_print_height);
+  printf ("Printer notes: %s\n", sl1->printer_notes);
+  printf ("Printer settings id: %s\n", sl1->printer_settings_id);
+  printf ("SLA material id: %s\n", sl1->sla_material_settings_id);
+  printf ("SLA print id: %s\n", sl1->sla_print_settings_id);
+  printf ("Number of fast layers: %d\n", sl1->num_fast_layers);
+  printf ("Number of slow layers: %d\n", sl1->num_slow_layers);
+  printf ("Print time: %d secs (%.2f mins, %.2f hrs)\n", sl1->print_time, (double) sl1->print_time / 60, (double) sl1->print_time / 3600);
 }
 
 /*
