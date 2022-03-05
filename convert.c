@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include "parser.h"
 #include "utils.h"
 
@@ -833,8 +834,8 @@ write_layers (FILE *file, size_t *index, ctb_t *ctb, const sl1_t *sl1)
   size_t out_buffer_size = 0;
 
   ctb->headers.layer_table_offset = *index;
-  //ctb->headers.encryption_key = (uint32_t) rand();
-  ctb->headers.encryption_key = 207222928;
+  srand (time (NULL));
+  ctb->headers.encryption_key = (uint32_t) rand();
 
   ctb_layer_header_base_t headers[layers_count];
   for (uint32_t i = 0; i < layers_count; i++)
