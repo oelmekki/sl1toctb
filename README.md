@@ -89,11 +89,9 @@ domain.
 
 I hate maintenance. For real. Nothing is more annoying than to have to get
 back on a project I though was done when I'm already on something else. So,
-don't expect I'll be reactive in the issue tracker or I'll release new
-features often (or even, probably: ever). I leave the issue tracker open,
-though, so that people can discuss to solve each others problems. I will
-probably merge pull request, or otherwise you can just fork the project,
-that's something github is very good at.
+don't expect I'll release new features often (or even, probably: ever). I
+will probably merge pull request, or otherwise you can just fork the
+project, that's something github is very good at.
 
 It's the reason why this project is written in C, using only very stable
 dependencies (libzip and zlib). The dependency I was not sure about its api
