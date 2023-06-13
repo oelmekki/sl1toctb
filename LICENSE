@@ -1,1 +1,5 @@
-This project is in public domain.
+sl1toctb contains a copy of libspng [1], which is dual
+licensed as BSD-2-Clause AND libpng-2.0. The rest of the code is public
+domain.
+
+[1] : https://libspng.org/
