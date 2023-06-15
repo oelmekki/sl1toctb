@@ -11,3 +11,10 @@ sast:
   stage: test
 include:
 - template: Security/SAST.gitlab-ci.yml
+analyze:
+  stage: test
+  image: musicscience37/clang-ci
+  script:
+    - ln -s /usr/bin/scan-build-14 /usr/bin/scan-build
+    - apt update && apt install -y zlib1g-dev libzip-dev
+    - make analyze
