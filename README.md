@@ -1,5 +1,9 @@
 # sl1toctb - convert prusaslicer files to ctb v4 files
 
+> Note to Github users : development is happening [on
+> Gitlab](https://gitlab.com/oelmekki/sl1toctb), please go there for issues
+> and pull requests.
+
 sl1toctb allows to convert files created by the prusaslicer 3d slicer into
 chitu's ctb file, version 4, to use with any 3d printer supporting those
 files.
@@ -84,20 +88,3 @@ You rock.
 sl1toctb contains a copy of [libspng](https://libspng.org/), which is dual
 licensed as BSD-2-Clause AND libpng-2.0. The rest of the code is public
 domain.
-
-## A word about maintenance
-
-I hate maintenance. For real. Nothing is more annoying than to have to get
-back on a project I though was done when I'm already on something else. So,
-don't expect I'll release new features often (or even, probably: ever). I
-will probably merge pull request, or otherwise you can just fork the
-project, that's something github is very good at.
-
-It's the reason why this project is written in C, using only very stable
-dependencies (libzip and zlib). The dependency I was not sure about its api
-stability, libspng, has been vendor'd. So basically, sl1toctb should build
-for the decades to come without a change. Or at the very least, for way
-longer than the ctb v4 format will be used in the wild.
-
-That's also why I put the code in public domain. If you have a problem with
-this code, fix it and do whatever you want with it.
